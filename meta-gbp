@@ -230,18 +230,18 @@ def _mainline_repo(dist: str) -> int:
     version = Version.parse(_current_tag_from_changelog(dist)[0])
 
     with tempfile.TemporaryDirectory() as td:
-        upstream = os.path.join(td, f'node-v{version.debian_version}.tar.gz')
+        orig = os.path.join(td, f'{version.pkg_name}_{version.debian_version}.orig.tar.gz')
         _cmd_q(
             'wget',
             '--quiet',
-            '--output-document', upstream,
+            '--output-document', orig,
             version.download_url,
         )
 
         _cmd_q(
             TOOLS,
-            '--volume', f'{upstream}:{upstream}:ro',
-            'gbp', 'import-orig', upstream,
+            '--volume', f'{orig}:{orig}:ro',
+            'gbp', 'import-orig', orig,
             '--pristine-tar',
             '--upstream-branch', 'upstream',
             '--no-interactive',
