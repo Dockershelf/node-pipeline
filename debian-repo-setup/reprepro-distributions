@@ -1,0 +1,29 @@
+# Dockershelf APT repository — reprepro distributions
+#
+# Node.js packages use the same codenames as Python packages. If the droplet is
+# already configured for python-pipeline, no change is required.
+#
+# Install on the DigitalOcean droplet:
+#   sudo mkdir -p /var/www/debian/conf
+#   sudo cp reprepro-distributions /var/www/debian/conf/distributions
+#   sudo chown -R "$USER":"$USER" /var/www/debian
+#
+# Replace SIGNWITH_KEY_ID with your GPG key id (gpg --list-keys --keyid-format long).
+
+Origin: Dockershelf
+Label: Dockershelf
+Suite: stable
+Codename: trixie
+Architectures: amd64 arm64 source
+Components: main
+Description: Dockershelf packages for Debian trixie (Python, Node.js, …)
+SignWith: SIGNWITH_KEY_ID
+
+Origin: Dockershelf
+Label: Dockershelf
+Suite: unstable
+Codename: unstable
+Architectures: amd64 arm64 source
+Components: main
+Description: Dockershelf packages for Debian unstable (Python, Node.js, …)
+SignWith: SIGNWITH_KEY_ID

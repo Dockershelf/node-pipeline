@@ -1,0 +1,27 @@
+name: packaging
+
+on:
+  schedule:
+    - cron: '10 10 * * *'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish .debs to APT droplet after smoke test
+        type: boolean
+        default: true
+
+concurrency:
+  group: packaging-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  pipeline:
+    uses: Dockershelf/node-pipeline/.github/workflows/update-meta-gbp.yml@main
+    with:
+      dists-json: '["trixie", "unstable"]'
+      publish: ${{ github.event_name == 'workflow_dispatch' && inputs.publish || github.event_name == 'schedule' }}
+    secrets: inherit

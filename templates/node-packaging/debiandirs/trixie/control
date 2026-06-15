@@ -1,0 +1,33 @@
+Source: nodejs
+Section: web
+Priority: optional
+Maintainer: Luis Alejandro Martínez Faneyth <luis@luisalejandro.org>
+Build-Depends: debhelper-compat (= 13),
+               g++,
+               make,
+               pkg-config,
+               python3:any,
+               libssl-dev,
+               zlib1g-dev
+Standards-Version: 4.6.2
+Homepage: https://nodejs.org
+Vcs-Browser: https://github.com/Dockershelf/node__NODE_MAJOR__
+Vcs-Git: https://github.com/Dockershelf/node__NODE_MAJOR__.git
+
+Package: nodejs
+Architecture: any
+Multi-Arch: allowed
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         ca-certificates
+Conflicts: nodejs-legacy,
+           npm
+Replaces: nodejs-legacy,
+          npm
+Provides: nodejs,
+          nodejs:any,
+          npm
+Description: Node.js event-based server-side JavaScript engine (major __NODE_MAJOR__)
+ Node.js is a platform for easily building fast, scalable network applications.
+ This Dockershelf package replaces the distribution nodejs and ships npm and
+ corepack in a single monolithic install.

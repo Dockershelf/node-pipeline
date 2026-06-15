@@ -1,0 +1,241 @@
+name: Update meta-gbp
+
+on:
+  workflow_call:
+    inputs:
+      dists-json:
+        required: true
+        type: string
+      publish:
+        type: boolean
+        default: true
+    secrets:
+      DEPLOY_SSH_KEY:
+        required: false
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      DEBFULLNAME: ${{ vars.DEBFULLNAME || 'Dockershelf Maintainer' }}
+      DEBEMAIL: ${{ vars.DEBEMAIL || '41898282+github-actions[bot]@users.noreply.github.com' }}
+    outputs:
+      rev: ${{ steps.rev.outputs.rev }}
+      node: ${{ steps.rev.outputs.node }}
+      node_repo_dir: ${{ steps.rev.outputs.node_repo_dir }}
+    steps:
+      - name: Checkout node repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Checkout node-pipeline
+        uses: actions/checkout@v4
+        with:
+          repository: Dockershelf/node-pipeline
+          path: node-pipeline
+
+      - name: Configure git
+        run: |
+          git config --global user.name "${DEBFULLNAME}"
+          git config --global user.email "${DEBEMAIL}"
+
+      - name: Setup workspace
+        run: |
+          bash node-pipeline/scripts/ci-setup-workspace.sh \
+            "$GITHUB_WORKSPACE" \
+            "$GITHUB_WORKSPACE/node-pipeline"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull builder images
+        env:
+          PIPELINE_DIR: ${{ github.workspace }}/node-pipeline
+          WORKSPACE: ${{ github.workspace }}
+        run: bash node-pipeline/scripts/ci-pull-builder-images.sh
+
+      - name: meta-gbp update
+        run: node-pipeline/meta-gbp update --no-interactive
+
+      - name: Export revision
+        id: rev
+        run: |
+          echo "rev=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "node=$(echo '${{ github.repository }}' | cut -d/ -f2 | sed 's/^node//')" >> "$GITHUB_OUTPUT"
+          echo "node_repo_dir=$GITHUB_WORKSPACE" >> "$GITHUB_OUTPUT"
+
+      - name: Push update commits
+        run: |
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          if git rev-parse origin/main >/dev/null 2>&1; then
+            ahead="$(git rev-list --count origin/main..HEAD || true)"
+          else
+            ahead="$(git rev-list --count HEAD || true)"
+          fi
+          if [[ "${ahead}" != "0" ]]; then
+            git push origin HEAD:main
+          fi
+
+  build:
+    needs: update
+    runs-on: ubuntu-latest
+    env:
+      DEBFULLNAME: ${{ vars.DEBFULLNAME || 'Dockershelf Maintainer' }}
+      DEBEMAIL: ${{ vars.DEBEMAIL || '41898282+github-actions[bot]@users.noreply.github.com' }}
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        dist: ${{ fromJSON(inputs.dists-json) }}
+    steps:
+      - name: Checkout node repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ needs.update.outputs.rev }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Checkout node-pipeline
+        uses: actions/checkout@v4
+        with:
+          repository: Dockershelf/node-pipeline
+          path: node-pipeline
+
+      - name: Configure git
+        run: |
+          git config --global user.name "${DEBFULLNAME}"
+          git config --global user.email "${DEBEMAIL}"
+
+      - name: Setup workspace
+        run: |
+          bash node-pipeline/scripts/ci-setup-workspace.sh \
+            "$GITHUB_WORKSPACE" \
+            "$GITHUB_WORKSPACE/node-pipeline"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull builder images
+        env:
+          PIPELINE_DIR: ${{ github.workspace }}/node-pipeline
+          WORKSPACE: ${{ github.workspace }}
+        run: bash node-pipeline/scripts/ci-pull-builder-images.sh
+
+      - name: Materialize and build
+        run: |
+          node-pipeline/meta-gbp materialize "${{ matrix.dist }}"
+          node-pipeline/meta-gbp build
+
+      - name: Upload debs
+        uses: actions/upload-artifact@v4
+        with:
+          name: debs-${{ matrix.dist }}
+          path: node-pipeline/dist/*.deb
+          if-no-files-found: error
+
+  smoke:
+    needs: [build, update]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dist: ${{ fromJSON(inputs.dists-json) }}
+    steps:
+      - name: Checkout node-pipeline
+        uses: actions/checkout@v4
+        with:
+          repository: Dockershelf/node-pipeline
+          path: node-pipeline
+          sparse-checkout: |
+            scripts
+
+      - name: Download debs
+        uses: actions/download-artifact@v4
+        with:
+          name: debs-${{ matrix.dist }}
+          path: dist
+
+      - name: Smoke test
+        run: |
+          bash node-pipeline/scripts/debian-smoke-test.sh \
+            --dist "${{ matrix.dist }}" \
+            --node "${{ needs.update.outputs.node }}" \
+            --dist-dir dist
+
+  publish:
+    needs: [smoke, update]
+    if: inputs.publish && vars.DEPLOY_HOST != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dist: ${{ fromJSON(inputs.dists-json) }}
+    steps:
+      - name: Checkout node-pipeline
+        uses: actions/checkout@v4
+        with:
+          repository: Dockershelf/node-pipeline
+          path: node-pipeline
+          sparse-checkout: |
+            scripts
+            debian-repo-setup
+
+      - name: Download debs
+        uses: actions/download-artifact@v4
+        with:
+          name: debs-${{ matrix.dist }}
+          path: dist
+
+      - name: Deploy preflight
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+          DEPLOY_INCOMING: ${{ vars.DEPLOY_INCOMING }}
+        run: bash node-pipeline/scripts/ci-deploy-preflight.sh
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Publish to APT droplet
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+          DEPLOY_INCOMING: ${{ vars.DEPLOY_INCOMING }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          bash node-pipeline/scripts/ci-publish.sh "${{ matrix.dist }}" dist
+
+  deploy-status:
+    needs: [smoke, publish]
+    if: always() && needs.smoke.result == 'success' && inputs.publish && needs.publish.result == 'skipped'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish skipped summary
+        run: |
+          {
+            echo "## Publish skipped"
+            echo ""
+            echo "Build and smoke completed. Publish was not run because deploy variables are not configured (\`DEPLOY_HOST\` empty)."
+            echo ""
+            echo "See [deploy-setup.md](https://github.com/Dockershelf/node-pipeline/blob/main/docs/deploy-setup.md)."
+          } >> "$GITHUB_STEP_SUMMARY"

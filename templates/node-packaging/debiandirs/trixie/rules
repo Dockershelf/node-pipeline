@@ -1,0 +1,18 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	./configure --prefix=/usr --shared-openssl --shared-zlib --with-intl=small-icu
+
+override_dh_auto_build:
+	$(MAKE) -j$(shell nproc)
+
+override_dh_auto_install:
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/nodejs
+	if [ -x debian/nodejs/usr/bin/node ] && [ ! -e debian/nodejs/usr/bin/nodejs ]; then \
+		ln -s node debian/nodejs/usr/bin/nodejs; \
+	fi

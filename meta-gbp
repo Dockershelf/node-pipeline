@@ -1,0 +1,513 @@
+#!/usr/bin/env python3
+"""meta-gbp: manages mainline and nightly releases for Dockershelf Node.js packaging."""
+from __future__ import annotations
+
+import argparse
+import functools
+import os.path
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+from typing import NamedTuple
+
+_DIRNAME_PAT = re.compile(r'^node([0-9]+)$')
+UPSTREAM_TAG_PREFIX = 'dockershelf/v'
+
+HERE = os.path.abspath(os.path.dirname(__file__))
+BUILD = os.path.join(HERE, 'build')
+TOOLS = os.path.join(HERE, 'tools')
+
+
+@functools.lru_cache
+def _node_major() -> int:
+    dirname = os.path.basename(os.getcwd())
+    match = _DIRNAME_PAT.match(dirname)
+    if not match:
+        raise SystemExit(f'not a meta-gbp repo? expected node# dir: {dirname}')
+    return int(match[1])
+
+
+VERSION_RE = re.compile(r'^v(\d+\.\d+\.\d+)((?:a|b|rc)\d+)?(.*)$')
+
+
+class Version(NamedTuple):
+    version: str
+    extra: str
+
+    @property
+    def pkg_name(self) -> str:
+        return 'nodejs'
+
+    @property
+    def debian_version(self) -> str:
+        extra = f'~{self.extra}' if self.extra else ''
+        return f'{self.version}{extra}'
+
+    @property
+    def filename(self) -> str:
+        return f'{self.pkg_name}_{self.debian_version}.tar.gz'
+
+    @property
+    def download_url(self) -> str:
+        extra = self.extra or ''
+        return (
+            f'https://nodejs.org/dist/v{self.version}/'
+            f'node-v{self.version}{extra}.tar.gz'
+        )
+
+    @classmethod
+    def parse(cls, s: str) -> Version:
+        match = VERSION_RE.fullmatch(s)
+        if not match or _is_nightly(match):
+            raise ValueError(f'expected bare version, got {s}')
+        return cls(match[1], match[2])
+
+
+def _current_tag_from_changelog(dist: str | None = None) -> re.Match[str]:
+    if dist is None:
+        dist = sorted(os.listdir('changelogs/mainline'))[0]
+    version = _cmd_o(
+        TOOLS, 'dpkg-parsechangelog',
+        '--file', f'changelogs/mainline/{dist}',
+        '--show-field=version',
+    ).strip()
+    parsed = re.fullmatch(
+        r'^(\d+\.\d+\.\d+)((?:~(?:a|b|rc)\d+)?)-\d+\+',
+        version,
+    )
+    if parsed is None:
+        raise SystemExit(f'unexpected changelog version: {version}')
+    extra = parsed.group(2).lstrip('~') if parsed.group(2) else ''
+    tag = f'v{parsed.group(1)}'
+    if extra:
+        tag = f'v{parsed.group(1)}{extra}'
+    match = VERSION_RE.fullmatch(tag)
+    if match is None:
+        raise SystemExit(f'Unexpected tag from changelog: {tag}')
+    return match
+
+
+def _current_tag_from_node() -> re.Match[str]:
+    git = ('git', '-C', 'node')
+    tag_cmd = (*git, 'describe', '--abbrev=10', '--tags', '--match', 'v*')
+    tag = _cmd_o(*tag_cmd).rstrip()
+    match = VERSION_RE.fullmatch(tag)
+    if match is None:
+        raise SystemExit(f'Unexpected tag: {tag}')
+
+    major = _node_major()
+    if not match[1].startswith(f'{major}.'):
+        prev = f'v{major - 1}.x'
+        try:
+            merge_base = _cmd_o(
+                *git, 'merge-base', f'origin/{prev}', 'HEAD',
+            ).strip()
+        except SystemExit:
+            merge_base = _cmd_o(*git, 'rev-list', '--max-parents=0', 'HEAD').strip()
+        a0_tag_target = _cmd_o(
+            *git, 'log',
+            '--reverse', '--format=%h',
+            f'{merge_base}..HEAD',
+        ).splitlines()[0]
+        _cmd_q(*git, 'tag', f'v{major}.0.0', a0_tag_target)
+
+        return _current_tag()
+
+    return match
+
+
+def _is_prerelease(v_match: re.Match[str]) -> bool:
+    return bool(v_match[2])
+
+
+def _is_nightly(v_match: re.Match[str]) -> bool:
+    return bool(v_match[3])
+
+
+def _p_cmd(cmd: tuple[str, ...], cwd: str | None) -> None:
+    cwd_s = f'({cwd})' if cwd else ''
+    print(f'{cwd_s}+ {shlex.join(cmd)}', file=sys.stderr)
+
+
+def _cmd_q(*cmd: str, cwd: str | None = None) -> None:
+    _p_cmd(cmd, cwd)
+    ret = subprocess.call(
+        cmd,
+        cwd=cwd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if ret:
+        raise SystemExit(f'`{shlex.join(cmd)}` raised {ret}')
+
+
+def _cmd_o(*cmd: str, cwd: str | None = None) -> str:
+    _p_cmd(cmd, cwd)
+    ret = subprocess.run(cmd, cwd=cwd, stdout=subprocess.PIPE, text=True)
+    if ret.returncode:
+        raise SystemExit(f'`{shlex.join(cmd)}` raised {ret.returncode}')
+    return ret.stdout
+
+
+def _cmd_r(*cmd: str, cwd: str | None = None) -> int:
+    _p_cmd(cmd, cwd)
+    return subprocess.call(cmd, cwd=cwd)
+
+
+def _validate_meta_gbp_dir() -> None:
+    for path in (
+        'changelogs/mainline',
+        'changelogs/nightly',
+        'node',
+        'debiandirs',
+    ):
+        if not os.path.exists(path):
+            raise SystemExit(f'not a meta-gbp repo? missing ./{path}')
+
+    assert _node_major()
+
+    mainline_dists = sorted(os.listdir('changelogs/mainline'))
+    nightly_dists = sorted(os.listdir('changelogs/nightly'))
+    assert mainline_dists == nightly_dists, (mainline_dists, nightly_dists)
+
+
+def _likely_node_clone(d: str) -> bool:
+    return os.path.isdir(d) and os.path.exists(os.path.join(d, 'configure'))
+
+
+def _potential_node_clone() -> str | None:
+    if _likely_node_clone('../../node'):
+        return '../../node'
+
+    for dname in os.listdir('..'):
+        if dname.startswith('node') and dname[4:].isdigit():
+            candidate = os.path.abspath(os.path.join('..', dname, 'node'))
+            if _likely_node_clone(candidate):
+                return candidate
+
+    return None
+
+
+def _reference_args() -> tuple[str, ...]:
+    node_dir = _potential_node_clone()
+    if node_dir is not None:
+        return ('--reference', node_dir, '--dissociate')
+    return ()
+
+
+    return match
+
+
+def _current_tag() -> re.Match[str]:
+    if os.path.isfile('node/configure'):
+        try:
+            return _current_tag_from_node()
+        except SystemExit:
+            pass
+    return _current_tag_from_changelog()
+
+
+def _ensure_submodule_available(*, required: bool = False) -> None:
+    if os.path.isfile('node/configure'):
+        return
+    if not required:
+        return
+    if not os.path.exists('.gitmodules'):
+        raise SystemExit('node submodule required; run init-node-submodules.sh')
+    _cmd_q('git', 'submodule', 'update', '--init', *_reference_args())
+    if _cmd_r('git', 'diff', '--quiet', '--no-ext-diff', 'node'):
+        _cmd_q('git', 'submodule', 'update', '--init')
+
+
+def _mainline_repo(dist: str) -> int:
+    _cmd_q('rm', '-rf', 'work')
+
+    _cmd_q('git', 'init', 'work')
+
+    version = Version.parse(_current_tag_from_changelog(dist)[0])
+
+    with tempfile.TemporaryDirectory() as td:
+        upstream = os.path.join(td, f'node-v{version.debian_version}.tar.gz')
+        _cmd_q(
+            'wget',
+            '--quiet',
+            '--output-document', upstream,
+            version.download_url,
+        )
+
+        _cmd_q(
+            TOOLS,
+            '--volume', f'{upstream}:{upstream}:ro',
+            'gbp', 'import-orig', upstream,
+            '--pristine-tar',
+            '--upstream-branch', 'upstream',
+            '--no-interactive',
+            '--no-symlink-orig',
+            '--no-merge',
+            cwd='work',
+        )
+
+    git = ('git', '-C', 'work')
+
+    _cmd_q(*git, 'checkout', 'upstream', '-b', f'debian/{dist}')
+
+    shutil.copytree(f'debiandirs/{dist}', 'work/debian')
+    shutil.copy(f'changelogs/mainline/{dist}', 'work/debian/changelog')
+    if os.path.isdir('patches') and os.listdir('patches'):
+        shutil.copytree('patches', 'work/debian/patches')
+
+    _cmd_q(*git, 'add', 'debian')
+    _cmd_q(*git, 'commit', '-q', '-m', f'meta-gbp: init for {dist}')
+
+    return 0
+
+
+def _minimal_nightly_repo() -> int:
+    _cmd_q('rm', '-rf', 'work')
+    _cmd_q('git', 'clone', 'node', 'work')
+
+    git = ('git', '-C', 'work')
+
+    _cmd_q(*git, 'branch', 'upstream')
+
+    v_match = _current_tag()
+    if _is_prerelease(v_match):
+        new_tag = f'{UPSTREAM_TAG_PREFIX}{v_match[1]}_{v_match[2]}{v_match[3]}'
+    else:
+        new_tag = f'{UPSTREAM_TAG_PREFIX}{v_match[1]}{v_match[3]}'
+    _cmd_q(*git, 'tag', new_tag)
+
+    _cmd_q(*git, 'checkout', '-b', 'debian/unknown')
+
+    os.makedirs('work/debian')
+    open('work/debian/control', 'a+').close()
+    if os.path.isdir('patches') and os.listdir('patches'):
+        shutil.copytree('patches', 'work/debian/patches')
+
+    _cmd_q(*git, 'add', 'debian')
+    _cmd_q(*git, 'commit', '-q', '-m', 'meta-gbp: init')
+
+    return 0
+
+
+def _nightly_repo(dist: str) -> int:
+    ret = _minimal_nightly_repo()
+    if ret:
+        return ret
+
+    git = ('git', '-C', 'work')
+
+    _cmd_q(*git, 'branch', '-m', f'debian/{dist}')
+
+    _cmd_q('rm', '-rf', 'work/debian')
+
+    shutil.copytree(f'debiandirs/{dist}', 'work/debian')
+    shutil.copy(f'changelogs/nightly/{dist}', 'work/debian/changelog')
+    if os.path.isdir('patches') and os.listdir('patches'):
+        shutil.copytree('patches', 'work/debian/patches')
+
+    _cmd_q(*git, 'add', 'debian')
+    _cmd_q(*git, 'commit', '-q', '-m', f'meta-gbp: init for {dist}')
+
+    return 0
+
+
+def _materialize(dist: str) -> int:
+    if _is_nightly(_current_tag()):
+        return _nightly_repo(dist)
+    return _mainline_repo(dist)
+
+
+def _update_target() -> str:
+    git = ('git', '-C', 'node')
+    major = _node_major()
+    branch = f'v{major}.x'
+
+    fetch = (*git, 'fetch', 'origin')
+
+    try:
+        _cmd_q(*fetch, f'refs/heads/{branch}:refs/heads/node-upstream')
+    except SystemExit:
+        try:
+            _cmd_q(*fetch, f'refs/tags/{branch}:refs/tags/{branch}')
+            _cmd_q(*git, 'update-ref', 'refs/heads/node-upstream', f'{branch}~0')
+            _cmd_q(*git, 'tag', '--delete', branch)
+        except SystemExit:
+            _cmd_q(*fetch, 'refs/heads/main:refs/heads/node-upstream')
+
+    current = _cmd_o(*git, 'rev-parse', 'HEAD').strip()
+
+    log_output = _cmd_o(
+        *git, 'log',
+        '--reverse',
+        '--decorate-refs=refs/tags/',
+        '--format=%H',
+        '--simplify-by-decoration',
+        'HEAD..node-upstream',
+    )
+    for line in log_output.splitlines():
+        if line == current:
+            continue
+        return line
+
+    return _cmd_o(*git, 'rev-parse', 'node-upstream').strip()
+
+
+def _update(*, rev: str | None, interactive: bool) -> int:
+    if rev is None:
+        rev = _update_target()
+
+    current_rev = _cmd_o('git', '-C', 'node', 'rev-parse', 'HEAD').strip()
+    if current_rev == rev:
+        print('already up to date!', file=sys.stderr)
+        return 0
+
+    _minimal_nightly_repo()
+
+    git_work = ('git', '-C', 'work')
+
+    if os.path.isdir('patches') and os.listdir('patches'):
+        _cmd_q(TOOLS, 'gbp', 'pq', 'import', cwd='work')
+        _cmd_q(*git_work, 'checkout', '-')
+
+    _cmd_q(*git_work, 'merge', rev)
+
+    if os.path.isdir('patches') and os.listdir('patches') and _cmd_r(TOOLS, 'gbp', 'pq', 'rebase', cwd='work'):
+        if not interactive:
+            return 1
+
+        print('*' * 79)
+        print('Did not rebase cleanly!')
+        print('- to cancel: `git rebase --abort` and `exit 1`')
+        print('- to continue: resolve the rebase conflicts and `exit 0`')
+        print('*' * 79)
+        ret = _cmd_r(os.environ.get('SHELL', 'bash'), cwd='work')
+        if ret:
+            return ret
+
+    if os.path.isdir('patches') and os.listdir('patches'):
+        _cmd_q(TOOLS, 'gbp', 'pq', 'export', cwd='work')
+        _cmd_q('rm', '-rf', 'patches')
+        shutil.copytree('work/debian/patches', 'patches')
+
+    _cmd_q('git', '-C', 'node', 'checkout', rev)
+
+    v_match = _current_tag()
+
+    changelog_target = 'nightly' if _is_nightly(v_match) else 'mainline'
+
+    for dist in os.listdir(f'changelogs/{changelog_target}'):
+        if _is_prerelease(v_match):
+            debian_version = f'{v_match[1]}~{v_match[2]}{v_match[3]}-1+{dist}1'
+        else:
+            debian_version = f'{v_match[1]}{v_match[3]}-1+{dist}1'
+        _cmd_q(
+            TOOLS, 'dch',
+            '--newversion', debian_version,
+            '--distribution', dist,
+            '--force-distribution',
+            '--changelog', f'changelogs/{changelog_target}/{dist}',
+            f'Update to {v_match[0]}.',
+        )
+
+    _cmd_q('git', 'add', 'changelogs', 'node')
+    if os.path.isdir('patches'):
+        _cmd_q('git', 'add', 'patches')
+    _cmd_q('git', 'commit', '-m', f'update to {rev} ({changelog_target})')
+
+    return 0
+
+
+def _changelog(message: str, *, only: str | None) -> int:
+    for dist in os.listdir('changelogs/mainline'):
+        if only is not None and dist != only:
+            continue
+        current_version = _cmd_o(
+            TOOLS, 'dpkg-parsechangelog',
+            '--file', f'changelogs/mainline/{dist}',
+            '--show-field=version',
+        ).strip()
+
+        parsed = re.fullmatch(r'^(.*)-1\+([a-z]+)([0-9]+)$', current_version)
+        if parsed is None:
+            raise SystemExit(f'unexpected version: {current_version}')
+
+        if parsed[2] != dist:
+            new = 1
+        else:
+            new = int(parsed[3]) + 1
+
+        _cmd_q(
+            TOOLS, 'dch',
+            '--newversion', f'{parsed[1]}-1+{dist}{new}',
+            '--distribution', dist,
+            '--force-distribution',
+            '--changelog', f'changelogs/mainline/{dist}',
+            message,
+        )
+
+    return 0
+
+
+def _build() -> int:
+    if not os.path.exists('work/debian/rules'):
+        raise SystemExit('not materialized?')
+
+    _cmd_q('rm', '-rf', 'dist')
+
+    args = []
+    if _is_nightly(_current_tag()):
+        args.append('--git-build')
+
+    return _cmd_r(BUILD, *args, cwd='work')
+
+
+def main() -> int:
+    _validate_meta_gbp_dir()
+
+    dists = sorted(os.listdir('changelogs/mainline'))
+
+    parser = argparse.ArgumentParser()
+
+    subparsers = parser.add_subparsers(dest='command', required=True)
+
+    subparsers.add_parser('build')
+
+    changelog = subparsers.add_parser('changelog')
+    changelog.add_argument('-m', '--message', required=True)
+    changelog.add_argument('--only', choices=dists)
+
+    materialize = subparsers.add_parser('materialize')
+    materialize.add_argument('dist', choices=dists)
+
+    update = subparsers.add_parser('update')
+    update.add_argument('--rev')
+    update.add_argument(
+        '--no-interactive',
+        dest='interactive',
+        action='store_false',
+    )
+
+    args = parser.parse_args()
+
+    if args.command == 'update':
+        _ensure_submodule_available(required=True)
+        return _update(rev=args.rev, interactive=args.interactive)
+
+    _ensure_submodule_available()
+
+    if args.command == 'build':
+        return _build()
+    if args.command == 'changelog':
+        return _changelog(args.message, only=args.only)
+    if args.command == 'materialize':
+        return _materialize(args.dist)
+
+    raise NotImplementedError(f'{args.command=}')
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
