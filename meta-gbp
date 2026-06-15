@@ -75,7 +75,7 @@ def _current_tag_from_changelog(dist: str | None = None) -> re.Match[str]:
         '--show-field=version',
     ).strip()
     parsed = re.fullmatch(
-        r'^(\d+\.\d+\.\d+)((?:~(?:a|b|rc)\d+)?)-\d+\+',
+        r'^(\d+\.\d+\.\d+)((?:~(?:a|b|rc)\d+)?)-\d+(?:\+[a-z0-9.~-]+)?$',
         version,
     )
     if parsed is None:
