@@ -6,7 +6,7 @@ export DH_VERBOSE = 1
 	dh $@
 
 override_dh_auto_configure:
-	./configure --python=python3.13 --prefix=/usr --shared-openssl --shared-zlib --with-intl=small-icu
+	PYTHON=python3.13 ./configure --prefix=/usr --shared-openssl --shared-zlib --with-intl=small-icu
 
 override_dh_auto_build:
 	$(MAKE) -j$(shell nproc)
