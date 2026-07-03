@@ -15,6 +15,9 @@ override_dh_auto_test:
 	# Upstream test-doc needs eslint dev lockfiles not in release tarball.
 	@:
 
+override_dh_dwz:
+	@echo "Skipping dwz; node binary exceeds dwz DIE limit."
+
 override_dh_auto_install:
 	$(MAKE) install DESTDIR=$(CURDIR)/debian/nodejs
 	if [ -x debian/nodejs/usr/bin/node ] && [ ! -e debian/nodejs/usr/bin/nodejs ]; then \
