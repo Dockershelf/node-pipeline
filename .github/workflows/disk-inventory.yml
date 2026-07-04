@@ -26,6 +26,9 @@ permissions:
 jobs:
   inventory:
     runs-on: ubuntu-latest
+    env:
+      DEBFULLNAME: ${{ vars.DEBFULLNAME || 'Dockershelf Maintainer' }}
+      DEBEMAIL: ${{ vars.DEBEMAIL || '41898282+github-actions[bot]@users.noreply.github.com' }}
     steps:
       - name: Checkout node-pipeline
         uses: actions/checkout@v4
@@ -39,6 +42,11 @@ jobs:
           path: ${{ inputs.node_repo }}
           submodules: recursive
           fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config --global user.name "${DEBFULLNAME}"
+          git config --global user.email "${DEBEMAIL}"
 
       - name: Setup workspace
         run: |
