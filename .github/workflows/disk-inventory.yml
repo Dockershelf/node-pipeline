@@ -68,6 +68,7 @@ jobs:
         env:
           PIPELINE_DIR: ${{ github.workspace }}/node-pipeline
           WORKSPACE: ${{ github.workspace }}
+          DOCKERSHELF_SUITES: ${{ inputs.dist }}
         run: bash node-pipeline/scripts/ci-pull-builder-images.sh
 
       - name: Host inventory after builder image prep

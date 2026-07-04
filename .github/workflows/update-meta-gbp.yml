@@ -62,6 +62,7 @@ jobs:
         env:
           PIPELINE_DIR: ${{ github.workspace }}/node-pipeline
           WORKSPACE: ${{ github.workspace }}
+          DOCKERSHELF_SUITES: ''
         run: bash node-pipeline/scripts/ci-pull-builder-images.sh
 
       - name: meta-gbp update
@@ -92,6 +93,9 @@ jobs:
     env:
       DEBFULLNAME: ${{ vars.DEBFULLNAME || 'Dockershelf Maintainer' }}
       DEBEMAIL: ${{ vars.DEBEMAIL || '41898282+github-actions[bot]@users.noreply.github.com' }}
+      DEB_BUILD_OPTIONS: noautodbgsym parallel=2
+      DEB_CFLAGS_MAINT_APPEND: -g0
+      DEB_CXXFLAGS_MAINT_APPEND: -g0
     timeout-minutes: 360
     strategy:
       fail-fast: false
@@ -123,6 +127,24 @@ jobs:
             "$GITHUB_WORKSPACE" \
             "$GITHUB_WORKSPACE/node-pipeline"
 
+      - name: Free runner disk space
+        run: |
+          echo "Before cleanup:"
+          df -h /
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/share/dotnet \
+            /usr/share/swift \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /usr/local/share/powershell \
+            /usr/local/share/chromium \
+            /opt/hostedtoolcache
+          sudo apt-get clean
+          docker system prune -af || true
+          echo "After cleanup:"
+          df -h /
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -134,6 +156,7 @@ jobs:
         env:
           PIPELINE_DIR: ${{ github.workspace }}/node-pipeline
           WORKSPACE: ${{ github.workspace }}
+          DOCKERSHELF_SUITES: ${{ matrix.dist }}
         run: bash node-pipeline/scripts/ci-pull-builder-images.sh
 
       - name: Materialize and build
