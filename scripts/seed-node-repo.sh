@@ -13,6 +13,7 @@ MAJOR="${1:?usage: seed-node-repo.sh <major> <target-dir>}"
 TARGET="${2:?usage: seed-node-repo.sh <major> <target-dir>}"
 PIPELINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATE="${PIPELINE}/templates/node-packaging"
+PYTHON_MINOR="$((MAJOR / 2 + 1))"
 
 if [ -e "${TARGET}" ]; then
     echo "ERROR: ${TARGET} already exists"
@@ -22,8 +23,8 @@ fi
 cp -a "${TEMPLATE}" "${TARGET}"
 
 while IFS= read -r -d '' file; do
-    if grep -q '__NODE_MAJOR__' "${file}" 2>/dev/null; then
-        perl -pi -e "s/__NODE_MAJOR__/${MAJOR}/g" "${file}"
+    if grep -q '__NODE_MAJOR__\|__PYTHON_MINOR__' "${file}" 2>/dev/null; then
+        perl -pi -e "s/__NODE_MAJOR__/${MAJOR}/g; s/__PYTHON_MINOR__/${PYTHON_MINOR}/g" "${file}"
     fi
 done < <(find "${TARGET}" -type f -print0)
 

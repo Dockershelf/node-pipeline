@@ -14,7 +14,7 @@ endif
 	dh $@
 
 override_dh_auto_configure:
-	PYTHON=python3.13 ./configure --prefix=/usr --shared-openssl --shared-zlib --with-intl=small-icu
+	PYTHON=python3.__PYTHON_MINOR__ ./configure --prefix=/usr --shared-openssl --shared-zlib --with-intl=small-icu
 
 override_dh_auto_build:
 	$(MAKE) -j$(PARALLEL_JOBS)
