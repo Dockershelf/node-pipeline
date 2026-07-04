@@ -23,11 +23,14 @@ human_size() {
 
 dir_bytes() {
     local path="$1"
+    local bytes=0
+
     if [[ -e "$path" ]]; then
-        du -sb "$path" 2>/dev/null | awk '{print $1}'
-    else
-        echo 0
+        # du may exit non-zero on unreadable children (e.g. /tmp); ignore failures.
+        bytes=$(du -sb "$path" 2>/dev/null | awk '{print $1}' || true)
+        bytes=${bytes:-0}
     fi
+    echo "$bytes"
 }
 
 TOTAL_RECLAIMABLE=0
@@ -45,6 +48,7 @@ report_candidate() {
     fi
 
     bytes="$(dir_bytes "$path")"
+    bytes=${bytes:-0}
     size="$(human_size "$bytes")"
     if [[ -n "$note" ]]; then
         printf '  %-42s %10s  %s\n' "$label" "$size" "$note"
@@ -173,6 +177,7 @@ if [[ -n "${GITHUB_WORKSPACE:-}" && -d "$GITHUB_WORKSPACE" ]]; then
     if [[ -d "$GITHUB_WORKSPACE/node-pipeline" ]]; then
         report_candidate "node-pipeline checkout" "$GITHUB_WORKSPACE/node-pipeline"
     fi
+    shopt -s nullglob
     for node_dir in "$GITHUB_WORKSPACE"/node*; do
         [[ -d "$node_dir" ]] || continue
         [[ "$(basename "$node_dir")" == node-pipeline ]] && continue
