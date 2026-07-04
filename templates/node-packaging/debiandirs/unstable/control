@@ -6,7 +6,7 @@ Build-Depends: debhelper-compat (= 13),
                g++,
                make,
                pkg-config,
-               python3.__PYTHON_MINOR__,
+               python3:any,
                libssl-dev,
                zlib1g-dev
 Standards-Version: 4.6.2

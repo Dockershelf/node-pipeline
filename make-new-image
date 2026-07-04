@@ -37,8 +37,12 @@ TO_APT_RE = re.compile(r'(,| \([^)]+\))')
 
 ALWAYS_DEPS = {
     'devscripts', 'equivs', 'git-buildpackage', 'gnupg', 'pristine-tar',
-    'python3.9', 'python3.10', 'python3.11', 'python3.12', 'python3.13',
 }
+
+DOCKERFILE_PYTHON_BUILDERS = (
+    'COPY install-python-builders.sh /usr/local/sbin/install-python-builders.sh\n'
+    'RUN bash /usr/local/sbin/install-python-builders.sh'
+)
 
 
 def main() -> int:
@@ -77,7 +81,9 @@ def main() -> int:
             cmd=shlex.join(sys.argv),
             codename=args.codename,
             packages=' \\\n        '.join(sorted(deps)),
-        ),
+        )
+        + '\n'
+        + DOCKERFILE_PYTHON_BUILDERS
     )
     return 0
 
