@@ -1,0 +1,80 @@
+name: Disk inventory
+
+on:
+  workflow_dispatch:
+    inputs:
+      mimic_build_prep:
+        description: Run the same checkout and builder-image steps as packaging build
+        type: boolean
+        default: true
+      node_repo:
+        description: Node major repo to checkout for workspace layout (e.g. node24)
+        type: string
+        default: node24
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout node-pipeline (scripts)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts
+
+      - name: Baseline inventory
+        run: bash scripts/ci-disk-inventory.sh baseline
+
+      - name: Checkout node-pipeline (full)
+        if: inputs.mimic_build_prep
+        uses: actions/checkout@v4
+        with:
+          path: node-pipeline
+
+      - name: Checkout node repo
+        if: inputs.mimic_build_prep
+        uses: actions/checkout@v4
+        with:
+          repository: Dockershelf/${{ inputs.node_repo }}
+          path: ${{ inputs.node_repo }}
+
+      - name: Setup workspace
+        if: inputs.mimic_build_prep
+        run: |
+          bash node-pipeline/scripts/ci-setup-workspace.sh \
+            "$GITHUB_WORKSPACE/${{ inputs.node_repo }}" \
+            "$GITHUB_WORKSPACE/node-pipeline"
+
+      - name: Log in to GHCR
+        if: inputs.mimic_build_prep
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull builder images
+        if: inputs.mimic_build_prep
+        env:
+          PIPELINE_DIR: ${{ github.workspace }}/node-pipeline
+          WORKSPACE: ${{ github.workspace }}
+        run: bash node-pipeline/scripts/ci-pull-builder-images.sh
+
+      - name: Inventory after build prep
+        if: inputs.mimic_build_prep
+        run: bash node-pipeline/scripts/ci-disk-inventory.sh after-build-prep
+
+      - name: Baseline-only summary note
+        if: ${{ !inputs.mimic_build_prep }}
+        run: |
+          {
+            echo ""
+            echo "## Skipped build prep"
+            echo ""
+            echo "Re-run with **mimic_build_prep=true** to measure disk use after"
+            echo "checkout and builder-image pull/build (same as packaging CI)."
+          } >>"$GITHUB_STEP_SUMMARY"
