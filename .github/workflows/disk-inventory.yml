@@ -3,14 +3,21 @@ name: Disk inventory
 on:
   workflow_dispatch:
     inputs:
-      mimic_build_prep:
-        description: Run the same checkout and builder-image steps as packaging build
-        type: boolean
-        default: true
       node_repo:
         description: Node major repo to checkout for workspace layout (e.g. node24)
         type: string
         default: node24
+      dist:
+        description: Debian suite to materialize and inspect
+        type: choice
+        default: unstable
+        options:
+          - trixie
+          - unstable
+      run_build_deps:
+        description: Run apt-get build-dep inside the builder container before the final inventory
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -20,37 +27,29 @@ jobs:
   inventory:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout node-pipeline (scripts)
-        uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            scripts
-
-      - name: Baseline inventory
-        run: bash scripts/ci-disk-inventory.sh baseline
-
-      - name: Checkout node-pipeline (full)
-        if: inputs.mimic_build_prep
+      - name: Checkout node-pipeline
         uses: actions/checkout@v4
         with:
           path: node-pipeline
 
       - name: Checkout node repo
-        if: inputs.mimic_build_prep
         uses: actions/checkout@v4
         with:
           repository: Dockershelf/${{ inputs.node_repo }}
           path: ${{ inputs.node_repo }}
+          submodules: recursive
+          fetch-depth: 0
 
       - name: Setup workspace
-        if: inputs.mimic_build_prep
         run: |
           bash node-pipeline/scripts/ci-setup-workspace.sh \
             "$GITHUB_WORKSPACE/${{ inputs.node_repo }}" \
             "$GITHUB_WORKSPACE/node-pipeline"
 
+      - name: Host inventory before builder image prep
+        run: bash node-pipeline/scripts/ci-disk-inventory.sh host-before-builder-image-prep
+
       - name: Log in to GHCR
-        if: inputs.mimic_build_prep
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -58,23 +57,60 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull builder images
-        if: inputs.mimic_build_prep
         env:
           PIPELINE_DIR: ${{ github.workspace }}/node-pipeline
           WORKSPACE: ${{ github.workspace }}
         run: bash node-pipeline/scripts/ci-pull-builder-images.sh
 
-      - name: Inventory after build prep
-        if: inputs.mimic_build_prep
-        run: bash node-pipeline/scripts/ci-disk-inventory.sh after-build-prep
+      - name: Host inventory after builder image prep
+        run: bash node-pipeline/scripts/ci-disk-inventory.sh host-after-builder-image-prep
 
-      - name: Baseline-only summary note
-        if: ${{ !inputs.mimic_build_prep }}
+      - name: Materialize node packaging
+        working-directory: ${{ github.workspace }}/${{ inputs.node_repo }}
         run: |
-          {
-            echo ""
-            echo "## Skipped build prep"
-            echo ""
-            echo "Re-run with **mimic_build_prep=true** to measure disk use after"
-            echo "checkout and builder-image pull/build (same as packaging CI)."
-          } >>"$GITHUB_STEP_SUMMARY"
+          ../node-pipeline/meta-gbp materialize "${{ inputs.dist }}"
+
+      - name: Inventory inside builder container
+        env:
+          BUILDER_IMAGE: ghcr.io/dockershelf/dockershelf-node-builder/${{ inputs.dist }}
+          NODE_REPO: ${{ inputs.node_repo }}
+          RUN_BUILD_DEPS: ${{ inputs.run_build_deps }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p container-dist
+
+          docker run --rm \
+            -e GITHUB_STEP_SUMMARY=/dist/container-summary.md \
+            -e RUN_BUILD_DEPS="${RUN_BUILD_DEPS}" \
+            -v "$GITHUB_WORKSPACE/${NODE_REPO}/work:/code:ro" \
+            -v "$GITHUB_WORKSPACE/node-pipeline:/node-pipeline:ro" \
+            -v "$GITHUB_WORKSPACE/container-dist:/dist:rw" \
+            "${BUILDER_IMAGE}" \
+            bash -euxc '
+              apt-get update -qq
+              bash /node-pipeline/scripts/ci-disk-inventory.sh container-before-copy
+
+              rm -rf /tmp/build-tree
+              cp -a /code /tmp/build-tree
+              git config --global --add safe.directory /tmp/build-tree
+              cd /tmp/build-tree
+              bash /node-pipeline/scripts/ci-disk-inventory.sh container-after-copy
+
+              if [[ "${RUN_BUILD_DEPS}" == "true" ]]; then
+                DEBIAN_FRONTEND=noninteractive apt-get build-dep -y -o Debug::pkgProblemResolver=yes .
+                bash /node-pipeline/scripts/ci-disk-inventory.sh container-after-build-dep
+              fi
+
+              UPSTREAM_VER="$(dpkg-parsechangelog --show-field=Version | cut -d- -f1)"
+              SOURCE="$(dpkg-parsechangelog --show-field=Source)"
+              pristine-tar checkout "../${SOURCE}_${UPSTREAM_VER}.orig.tar.gz"
+              bash /node-pipeline/scripts/ci-disk-inventory.sh container-after-pristine-tar
+
+              git clean -fxfd
+              bash /node-pipeline/scripts/ci-disk-inventory.sh container-after-git-clean-before-build
+            '
+
+          if [[ -f container-dist/container-summary.md ]]; then
+            cat container-dist/container-summary.md >>"$GITHUB_STEP_SUMMARY"
+          fi
