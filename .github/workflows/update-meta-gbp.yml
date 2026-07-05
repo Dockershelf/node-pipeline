@@ -35,13 +35,13 @@ jobs:
       node_repo_dir: ${{ steps.rev.outputs.node_repo_dir }}
     steps:
       - name: Checkout node repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
 
       - name: Checkout node-pipeline
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Dockershelf/node-pipeline
           path: node-pipeline
@@ -58,7 +58,7 @@ jobs:
             "$GITHUB_WORKSPACE/node-pipeline"
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -111,7 +111,7 @@ jobs:
         arch: ${{ fromJSON(inputs.arches-json) }}
     steps:
       - name: Checkout node repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository }}
           ref: ${{ needs.update.outputs.rev }}
@@ -119,7 +119,7 @@ jobs:
           fetch-depth: 0
 
       - name: Checkout node-pipeline
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Dockershelf/node-pipeline
           path: node-pipeline
@@ -154,7 +154,7 @@ jobs:
           df -h /
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -173,7 +173,7 @@ jobs:
           node-pipeline/meta-gbp build
 
       - name: Upload debs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: debs-${{ matrix.dist }}-${{ matrix.arch }}
           path: node-pipeline/dist/*.deb
@@ -191,7 +191,7 @@ jobs:
         arch: ${{ fromJSON(inputs.arches-json) }}
     steps:
       - name: Checkout node-pipeline
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Dockershelf/node-pipeline
           path: node-pipeline
@@ -199,7 +199,7 @@ jobs:
             scripts
 
       - name: Download debs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: debs-${{ matrix.dist }}-${{ matrix.arch }}
           path: dist
@@ -225,7 +225,7 @@ jobs:
         arch: ${{ fromJSON(inputs.arches-json) }}
     steps:
       - name: Checkout node-pipeline
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Dockershelf/node-pipeline
           path: node-pipeline
@@ -234,7 +234,7 @@ jobs:
             debian-repo-setup
 
       - name: Download debs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: debs-${{ matrix.dist }}-${{ matrix.arch }}
           path: dist
