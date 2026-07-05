@@ -22,6 +22,7 @@ def main() -> NoReturn:
         'DEB_CXXFLAGS_MAINT_APPEND',
         'DEB_CPPFLAGS_MAINT_APPEND',
         'DEB_LDFLAGS_MAINT_APPEND',
+        'DOCKERSHELF_ARCH',
     ):
         if var in os.environ:
             forwarded_env.extend(('--env', f'{var}={os.environ[var]}'))

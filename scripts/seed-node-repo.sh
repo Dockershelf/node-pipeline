@@ -2,7 +2,7 @@
 # Seed a local node{major} packaging repository from the node-pipeline template.
 #
 # Usage:
-#   ./seed-node-repo.sh 22 /path/to/deadsnakes-pipeline/node22
+#   ./seed-node-repo.sh 22 /path/to/dockershelf-pipeline/node22
 #
 # The upstream `node/` submodule is not cloned here (too large for bootstrap).
 # Initialize it later with ../init-node-submodules.sh or let meta-gbp fetch tarballs.

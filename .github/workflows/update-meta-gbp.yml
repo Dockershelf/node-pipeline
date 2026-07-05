@@ -6,6 +6,10 @@ on:
       dists-json:
         required: true
         type: string
+      arches-json:
+        required: false
+        type: string
+        default: '["amd64"]'
       publish:
         type: boolean
         default: true
@@ -91,18 +95,20 @@ jobs:
 
   build:
     needs: update
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     env:
       DEBFULLNAME: ${{ vars.DEBFULLNAME || 'Dockershelf Maintainer' }}
       DEBEMAIL: ${{ vars.DEBEMAIL || '41898282+github-actions[bot]@users.noreply.github.com' }}
       DEB_BUILD_OPTIONS: noautodbgsym parallel=2
       DEB_CFLAGS_MAINT_APPEND: -g0
       DEB_CXXFLAGS_MAINT_APPEND: -g0
+      DOCKERSHELF_ARCH: ${{ matrix.arch }}
     timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
         dist: ${{ fromJSON(inputs.dists-json) }}
+        arch: ${{ fromJSON(inputs.arches-json) }}
     steps:
       - name: Checkout node repo
         uses: actions/checkout@v4
@@ -169,17 +175,20 @@ jobs:
       - name: Upload debs
         uses: actions/upload-artifact@v4
         with:
-          name: debs-${{ matrix.dist }}
+          name: debs-${{ matrix.dist }}-${{ matrix.arch }}
           path: node-pipeline/dist/*.deb
           if-no-files-found: error
 
   smoke:
     needs: [build, update]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    env:
+      DOCKERSHELF_ARCH: ${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
         dist: ${{ fromJSON(inputs.dists-json) }}
+        arch: ${{ fromJSON(inputs.arches-json) }}
     steps:
       - name: Checkout node-pipeline
         uses: actions/checkout@v4
@@ -192,7 +201,7 @@ jobs:
       - name: Download debs
         uses: actions/download-artifact@v4
         with:
-          name: debs-${{ matrix.dist }}
+          name: debs-${{ matrix.dist }}-${{ matrix.arch }}
           path: dist
 
       - name: Smoke test
@@ -200,16 +209,20 @@ jobs:
           bash node-pipeline/scripts/debian-smoke-test.sh \
             --dist "${{ matrix.dist }}" \
             --node "${{ needs.update.outputs.node }}" \
-            --dist-dir dist
+            --dist-dir dist \
+            --arch "${{ matrix.arch }}"
 
   publish:
     needs: [smoke, update]
     if: inputs.publish && vars.DEPLOY_HOST != ''
     runs-on: ubuntu-latest
+    env:
+      DOCKERSHELF_ARCH: ${{ matrix.arch }}
     strategy:
       fail-fast: false
       matrix:
         dist: ${{ fromJSON(inputs.dists-json) }}
+        arch: ${{ fromJSON(inputs.arches-json) }}
     steps:
       - name: Checkout node-pipeline
         uses: actions/checkout@v4
@@ -223,7 +236,7 @@ jobs:
       - name: Download debs
         uses: actions/download-artifact@v4
         with:
-          name: debs-${{ matrix.dist }}
+          name: debs-${{ matrix.dist }}-${{ matrix.arch }}
           path: dist
 
       - name: Deploy preflight
@@ -248,7 +261,7 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
-          bash node-pipeline/scripts/ci-publish.sh "${{ matrix.dist }}" dist
+          bash node-pipeline/scripts/ci-publish.sh "${{ matrix.dist }}" dist "${{ matrix.arch }}"
 
   deploy-status:
     needs: [smoke, publish]

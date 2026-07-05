@@ -9,7 +9,7 @@ Mirrors [python-pipeline](../python-pipeline/) for Debian (`trixie`, `unstable`)
 Clone this repo as a sibling of the `node*` packaging repos:
 
 ```text
-deadsnakes-pipeline/
+dockershelf-pipeline/
 ├── node-pipeline/     # this repo
 ├── node16/
 ├── node18/

@@ -1,39 +1,22 @@
-# DigitalOcean Droplet — APT repository setup
+# APT repository setup (Node pipeline)
 
-Templates for hosting Dockershelf-built Node.js `.deb` packages with **reprepro** and **nginx**.
+Node packages publish to the **same** DigitalOcean APT droplet and repository
+tree as Python and Go packages — no separate droplet or bootstrap is required.
 
-Node packages share the same repository tree as Python packages (`/var/www/debian`). No separate droplet is required.
+This directory holds pipeline-local copies of the shared `reprepro` config
+(`reprepro-distributions`), the SSH import hook (`import-incoming.sh`), and the
+nginx site config (`nginx-debian.conf`) used by the publish flow.
 
-## Layout on the droplet
+## Canonical setup
 
-```text
-/var/www/debian/
-├── conf/
-│   └── distributions          # from reprepro-distributions
-├── incoming/                  # rsync target for new .deb files
-├── dists/                     # reprepro-generated indices
-└── pool/                      # reprepro package pool
-```
+Droplet bootstrap, signing key, DNS/TLS, and GitHub secrets/variables are
+documented once in the Python pipeline:
 
-## One-time server setup
+- [python-pipeline/debian-repo-setup/README.md](https://github.com/Dockershelf/python-pipeline/blob/main/debian-repo-setup/README.md) — droplet layout, bootstrap, client apt line
+- [python-pipeline/docs/deploy-setup.md](https://github.com/Dockershelf/python-pipeline/blob/main/docs/deploy-setup.md) — end-to-end deploy checklist
+- [../docs/deploy-setup.md](../docs/deploy-setup.md) — Node-specific notes (shared variables, no re-bootstrap)
 
-Use the Python pipeline bootstrap (shared droplet):
-
-- [python-pipeline/debian-repo-setup/bootstrap-droplet.sh](https://github.com/Dockershelf/python-pipeline/blob/main/debian-repo-setup/bootstrap-droplet.sh)
-- [python-pipeline/debian-repo-setup/create-ci-deploy-key.sh](https://github.com/Dockershelf/python-pipeline/blob/main/debian-repo-setup/create-ci-deploy-key.sh)
-- [python-pipeline/docs/deploy-setup.md](https://github.com/Dockershelf/python-pipeline/blob/main/docs/deploy-setup.md)
-
-Node packages publish into the same `trixie` and `unstable` codenames.
-
-## Client apt line (Dockershelf images)
-
-```text
-deb [signed-by=/usr/share/keyrings/dockershelf.gpg] https://apt.luisalejandro.org/dockershelf trixie main
-```
-
-Use codename matching the image base (`trixie` or `unstable` for sid).
-
-## Publish flow (from local pipeline)
+## Publish flow
 
 From `node-pipeline/` after `make build`:
 
@@ -42,5 +25,4 @@ make publish DIST=trixie
 ```
 
 This rsyncs `dist/*.deb` to the droplet and runs `import-incoming.sh` over SSH.
-
 CI uses the same path via [`scripts/ci-publish.sh`](../scripts/ci-publish.sh).

@@ -2,7 +2,7 @@
 
 How to add a new Node.js major line, bump an existing Node version, or add a new Debian suite to the Dockershelf Node packaging pipeline.
 
-**Workspace:** run commands from `node-pipeline/` unless noted. Each `nodeXX/` repo is a sibling in the parent directory (`deadsnakes-pipeline/`).
+**Workspace:** run commands from `node-pipeline/` unless noted. Each `nodeXX/` repo is a sibling in the parent directory (`dockershelf-pipeline/`).
 
 **Version string format:** Debian package versions look like `22.11.0-1+trixie3`:
 

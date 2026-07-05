@@ -10,7 +10,17 @@ set -euo pipefail
 RELEASE_TAG="${DOCKERSHELF_PYTHON_STANDALONE_RELEASE:-20251010}"
 BASE_URL="https://github.com/astral-sh/python-build-standalone/releases/download/${RELEASE_TAG}"
 TARGET="${DOCKERSHELF_PYTHON_PREFIX:-/opt/dockershelf/python}"
-ARCH="x86_64-unknown-linux-gnu"
+
+# Detect arch: map dpkg arch to python-build-standalone triple
+DPKG_ARCH="$(dpkg --print-architecture)"
+case "$DPKG_ARCH" in
+    amd64)  ARCH="x86_64-unknown-linux-gnu" ;;
+    arm64)  ARCH="aarch64-unknown-linux-gnu" ;;
+    *)
+        # Fallback to TARGETARCH env var or default
+        ARCH="${TARGETARCH:-x86_64-unknown-linux-gnu}"
+        ;;
+esac
 
 declare -A PYTHON_VERSIONS=(
     [3.9]=3.9.24
@@ -33,7 +43,7 @@ for minor in "${!PYTHON_VERSIONS[@]}"; do
     archive="cpython-${full}+${RELEASE_TAG}-${ARCH}-install_only_stripped.tar.gz"
     url="${BASE_URL}/${archive}"
   tmp="$(mktemp -d)"
-    echo "Installing Python ${full} from ${archive}"
+    echo "Installing Python ${full} (${ARCH}) from ${archive}"
     wget -q -O "${tmp}/${archive}" "${url}"
     rm -rf "${TARGET}/versions/${minor}"
     mkdir -p "${TARGET}/versions/${minor}"
