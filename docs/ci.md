@@ -3,6 +3,11 @@
 Continuous integration for Dockershelf Node.js packaging: builder images on GHCR, scheduled
 `meta-gbp update` / build / smoke test / APT publish across `node16`–`node24`.
 
+Multi-arch (amd64 + arm64) is supported via the `arches` dispatch input and the
+`arches-json` reusable-workflow input. arm64 jobs run on `ubuntu-24.04-arm` runners.
+`trixie` is temporarily disabled in the committed `main.yml` files (`dists-json: '["unstable"]'`);
+re-enable by restoring `'["trixie", "unstable"]'` once trixie builder images and patches are ready.
+
 ## Workflows
 
 | Workflow | Repo | Purpose |
@@ -65,8 +70,8 @@ Full droplet + GitHub wiring: [`docs/deploy-setup.md`](deploy-setup.md).
 | `DEPLOY_USER` | `deploy` |
 | `DEPLOY_DIR` | `/var/www/debian` |
 | `DEPLOY_INCOMING` | `/var/www/debian/incoming` |
-| `DEBFULLNAME` | `Dockershelf Maintainer` |
-| `DEBEMAIL` | `maintainer@example.com` |
+| `DEBFULLNAME` | `Luis Alejandro Martínez Faneyth` |
+| `DEBEMAIL` | `luis@luisalejandro.org` |
 
 Publish jobs run only when `publish` input is true **and** `DEPLOY_HOST` is set. When deploy variables are missing, build and smoke still run and the workflow summary notes that publish was skipped.
 
@@ -88,25 +93,29 @@ Publish jobs run only when `publish` input is true **and** `DEPLOY_HOST` is set.
 
 ## Schedule (UTC)
 
-Cron is staggered after the Python window (`9:45`–`10:05` UTC):
+Packaging runs **weekly on Thursday** (2 days before Dockershelf consumer images build on **Saturday** 00:00 UTC). Cron is staggered per Node line to reduce runner overlap:
 
-| Repo | Cron |
-|------|------|
-| node16 | `10 10 * * *` |
-| node18 | `15 10 * * *` |
-| node20 | `20 10 * * *` |
-| node22 | `25 10 * * *` |
-| node24 | `30 10 * * *` |
+| Repo | Cron | Notes |
+|------|------|-------|
+| node16 | `0 0 * * 4` | Thursday 00:00 |
+| node18 | `0 2 * * 4` | Thursday 02:00 |
+| node20 | `0 4 * * 4` | Thursday 04:00 |
+| node22 | `0 6 * * 4` | Thursday 06:00 |
+| node24 | `0 8 * * 4` | Thursday 08:00 |
 
-Scheduled runs publish when deploy variables and `DEPLOY_SSH_KEY` are configured. Use `workflow_dispatch` with `publish: false` to build and smoke-test only.
+Scheduled runs publish when deploy variables and `DEPLOY_SSH_KEY` are configured. Use `workflow_dispatch` with `publish: false` to build and smoke-test only, and `arches` (JSON array, default `["amd64"]`) to select architectures.
 
 ## Manual runs
 
-**Full pipeline (node22):** Actions → packaging → Run workflow.
+**Full pipeline (node22):** Actions → packaging → Run workflow. Set `arches` to `["amd64","arm64"]` for multi-arch, or `["amd64"]` (default) for amd64 only.
 
 **Republish existing debs:** `node-pipeline` → Actions → publish → choose suite (expects `dist/*.deb` in the runner workspace).
 
 **Deploy connectivity only:** `node-pipeline` → Actions → Deploy connectivity.
+
+## `deploy-status` summary job
+
+The reusable workflow has a final `deploy-status` job that runs **only when** `smoke` succeeded but `publish` was skipped (because `DEPLOY_HOST` is empty). It writes a short summary to the run's job summary explaining that build and smoke passed but publish was not configured. It never runs when publish succeeds or when smoke fails.
 
 ## Failure modes
 
@@ -117,6 +126,7 @@ Scheduled runs publish when deploy variables and `DEPLOY_SSH_KEY` are configured
 | Smoke test `apt-get -f install` fails | Check missing runtime deps in generated `.deb` set |
 | Publish SSH/rsync fails | Verify `DEPLOY_*` variables and `DEPLOY_SSH_KEY`; run **Deploy connectivity** workflow |
 | Build timeout | Node V8 compile can exceed default limits; `update-meta-gbp.yml` uses `timeout-minutes: 360` |
+| arm64 runner unavailable | `ubuntu-24.04-arm` runners are GitHub-hosted; ensure `arches` only includes `arm64` when repo/plan supports it |
 
 ## Verification checklist
 
