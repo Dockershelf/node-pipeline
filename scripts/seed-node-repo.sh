@@ -4,8 +4,10 @@
 # Usage:
 #   ./seed-node-repo.sh 22 /path/to/dockershelf-pipeline/node22
 #
-# The upstream `node/` submodule is not cloned here (too large for bootstrap).
-# Initialize it later with ../init-node-submodules.sh or let meta-gbp fetch tarballs.
+# The upstream `node/` submodule gitlink is registered pointing to the
+# v{MAJOR}.x branch HEAD, but the working tree is not cloned here (too large
+# for bootstrap). Initialize it later with ../init-node-submodules.sh or:
+#   git submodule update --init node
 
 set -euo pipefail
 
@@ -37,10 +39,16 @@ cat > .gitmodules <<EOF
 	url = https://github.com/nodejs/node.git
 	branch = v${MAJOR}.x
 EOF
-cat > node/.gitkeep <<'EOF'
-# Populated by init-node-submodules.sh or: git submodule update --init node
-EOF
-git add -A
+
+# Register node/ as a proper 160000 gitlink pointing to the v${MAJOR}.x
+# branch HEAD, matching the python-pipeline cpython/ submodule pattern.
+# The working tree is populated later by init-node-submodules.sh or:
+#   git submodule update --init node
+NODE_SHA="$(curl -fsSL "https://api.github.com/repos/nodejs/node/branches/v${MAJOR}.x" \
+    | python3 -c "import sys,json; print(json.load(sys.stdin)['commit']['sha'])")"
+rm -rf node
+git update-index --add --cacheinfo 160000 "${NODE_SHA}" node
+git add .gitmodules
 git commit -m "Initial node${MAJOR} Debian packaging repository"
 
 echo "Seeded ${TARGET} (run init-node-submodules.sh to fetch upstream node)"
