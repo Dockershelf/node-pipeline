@@ -1,5 +1,0 @@
-nodejs (__NODE_MAJOR__.0.0-1+unstable1) unstable; urgency=medium
-
-  * Initial Dockershelf nightly packaging for Node.js __NODE_MAJOR__.
-
- -- Luis Alejandro Martínez Faneyth <luis@luisalejandro.org>  Mon, 15 Jun 2026 00:00:00 +0000

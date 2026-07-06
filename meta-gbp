@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""meta-gbp: manages mainline and nightly releases for Dockershelf Node.js packaging."""
+"""meta-gbp: manages mainline releases for Dockershelf Node.js packaging."""
 from __future__ import annotations
 
 import argparse
@@ -65,7 +65,7 @@ class Version(NamedTuple):
     @classmethod
     def parse(cls, s: str) -> Version:
         match = VERSION_RE.fullmatch(s)
-        if not match or _is_nightly(match):
+        if not match:
             raise ValueError(f'expected bare version, got {s}')
         return cls(match[1], match[2])
 
@@ -127,10 +127,6 @@ def _is_prerelease(v_match: re.Match[str]) -> bool:
     return bool(v_match[2])
 
 
-def _is_nightly(v_match: re.Match[str]) -> bool:
-    return bool(v_match[3])
-
-
 def _p_cmd(cmd: tuple[str, ...], cwd: str | None) -> None:
     cwd_s = f'({cwd})' if cwd else ''
     print(f'{cwd_s}+ {shlex.join(cmd)}', file=sys.stderr)
@@ -164,7 +160,6 @@ def _cmd_r(*cmd: str, cwd: str | None = None) -> int:
 def _validate_meta_gbp_dir() -> None:
     for path in (
         'changelogs/mainline',
-        'changelogs/nightly',
         'node',
         'debiandirs',
     ):
@@ -174,8 +169,6 @@ def _validate_meta_gbp_dir() -> None:
     assert _node_major()
 
     mainline_dists = sorted(os.listdir('changelogs/mainline'))
-    nightly_dists = sorted(os.listdir('changelogs/nightly'))
-    assert mainline_dists == nightly_dists, (mainline_dists, nightly_dists)
 
 
 def _likely_node_clone(d: str) -> bool:
@@ -269,59 +262,7 @@ def _mainline_repo(dist: str) -> int:
     return 0
 
 
-def _minimal_nightly_repo() -> int:
-    _cmd_q('rm', '-rf', 'work')
-    _cmd_q('git', 'clone', 'node', 'work')
-
-    git = ('git', '-C', 'work')
-
-    _cmd_q(*git, 'branch', 'upstream')
-
-    v_match = _current_tag()
-    if _is_prerelease(v_match):
-        new_tag = f'{UPSTREAM_TAG_PREFIX}{v_match[1]}_{v_match[2]}{v_match[3]}'
-    else:
-        new_tag = f'{UPSTREAM_TAG_PREFIX}{v_match[1]}{v_match[3]}'
-    _cmd_q(*git, 'tag', new_tag)
-
-    _cmd_q(*git, 'checkout', '-b', 'debian/unknown')
-
-    os.makedirs('work/debian')
-    open('work/debian/control', 'a+').close()
-    if os.path.isdir('patches') and os.listdir('patches'):
-        shutil.copytree('patches', 'work/debian/patches')
-
-    _cmd_q(*git, 'add', 'debian')
-    _cmd_q(*git, 'commit', '-q', '-m', 'meta-gbp: init')
-
-    return 0
-
-
-def _nightly_repo(dist: str) -> int:
-    ret = _minimal_nightly_repo()
-    if ret:
-        return ret
-
-    git = ('git', '-C', 'work')
-
-    _cmd_q(*git, 'branch', '-m', f'debian/{dist}')
-
-    _cmd_q('rm', '-rf', 'work/debian')
-
-    shutil.copytree(f'debiandirs/{dist}', 'work/debian')
-    shutil.copy(f'changelogs/nightly/{dist}', 'work/debian/changelog')
-    if os.path.isdir('patches') and os.listdir('patches'):
-        shutil.copytree('patches', 'work/debian/patches')
-
-    _cmd_q(*git, 'add', 'debian')
-    _cmd_q(*git, 'commit', '-q', '-m', f'meta-gbp: init for {dist}')
-
-    return 0
-
-
 def _materialize(dist: str) -> int:
-    if _is_nightly(_current_tag()):
-        return _nightly_repo(dist)
     return _mainline_repo(dist)
 
 
@@ -369,9 +310,29 @@ def _update(*, rev: str | None, interactive: bool) -> int:
         print('already up to date!', file=sys.stderr)
         return 0
 
-    _minimal_nightly_repo()
+    _cmd_q('rm', '-rf', 'work')
+    _cmd_q('git', 'clone', 'node', 'work')
 
     git_work = ('git', '-C', 'work')
+
+    _cmd_q(*git_work, 'branch', 'upstream')
+
+    v_match = _current_tag()
+    if _is_prerelease(v_match):
+        new_tag = f'{UPSTREAM_TAG_PREFIX}{v_match[1]}_{v_match[2]}'
+    else:
+        new_tag = f'{UPSTREAM_TAG_PREFIX}{v_match[1]}'
+    _cmd_q(*git_work, 'tag', new_tag)
+
+    _cmd_q(*git_work, 'checkout', '-b', 'debian/unknown')
+
+    os.makedirs('work/debian')
+    open('work/debian/control', 'a+').close()
+    if os.path.isdir('patches') and os.listdir('patches'):
+        shutil.copytree('patches', 'work/debian/patches')
+
+    _cmd_q(*git_work, 'add', 'debian')
+    _cmd_q(*git_work, 'commit', '-q', '-m', 'meta-gbp: init')
 
     if os.path.isdir('patches') and os.listdir('patches'):
         _cmd_q(TOOLS, 'gbp', 'pq', 'import', cwd='work')
@@ -401,26 +362,24 @@ def _update(*, rev: str | None, interactive: bool) -> int:
 
     v_match = _current_tag()
 
-    changelog_target = 'nightly' if _is_nightly(v_match) else 'mainline'
-
-    for dist in os.listdir(f'changelogs/{changelog_target}'):
+    for dist in os.listdir('changelogs/mainline'):
         if _is_prerelease(v_match):
-            debian_version = f'{v_match[1]}~{v_match[2]}{v_match[3]}-1+{dist}1'
+            debian_version = f'{v_match[1]}~{v_match[2]}-1+{dist}1'
         else:
-            debian_version = f'{v_match[1]}{v_match[3]}-1+{dist}1'
+            debian_version = f'{v_match[1]}-1+{dist}1'
         _cmd_q(
             TOOLS, 'dch',
             '--newversion', debian_version,
             '--distribution', dist,
             '--force-distribution',
-            '--changelog', f'changelogs/{changelog_target}/{dist}',
+            '--changelog', f'changelogs/mainline/{dist}',
             f'Update to {v_match[0]}.',
         )
 
     _cmd_q('git', 'add', 'changelogs', 'node')
     if os.path.isdir('patches'):
         _cmd_q('git', 'add', 'patches')
-    _cmd_q('git', 'commit', '-m', f'update to {rev} ({changelog_target})')
+    _cmd_q('git', 'commit', '-m', f'update to {rev}')
 
     return 0
 
@@ -462,11 +421,7 @@ def _build() -> int:
 
     _cmd_q('rm', '-rf', 'dist')
 
-    args = []
-    if _is_nightly(_current_tag()):
-        args.append('--git-build')
-
-    return _cmd_r(BUILD, *args, cwd='work')
+    return _cmd_r(BUILD, cwd='work')
 
 
 def main() -> int:

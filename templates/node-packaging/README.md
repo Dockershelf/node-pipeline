@@ -10,7 +10,6 @@ Debian packaging for Node.js __NODE_MAJOR__: monolithic `nodejs` replacement pac
 Packaging trees live under `debiandirs/<suite>/`. Changelog tracks:
 
 - **mainline** — `changelogs/mainline/<suite>`
-- **nightly** — `changelogs/nightly/<suite>`
 
 ## Build (from workspace)
 
@@ -30,4 +29,4 @@ See the [operations manual](https://github.com/Dockershelf/node-pipeline/blob/ma
 | `node/` | Upstream Node.js git submodule (`v__NODE_MAJOR__.x` branch) |
 | `patches/` | Quilt series (usually empty for monolithic builds) |
 | `debiandirs/` | Per-suite Debian packaging (`trixie`, `unstable`) |
-| `changelogs/` | `mainline` and `nightly` dch history per suite |
+| `changelogs/` | `mainline` dch history per suite |
