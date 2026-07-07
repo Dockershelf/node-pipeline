@@ -71,7 +71,7 @@ if [[ "$FROM_APT" -eq 1 ]]; then
         curl -fsSL ${APT_URL}/dockershelf-apt-signing.pub | gpg --dearmor > /usr/share/keyrings/dockershelf.gpg
         echo 'deb [signed-by=/usr/share/keyrings/dockershelf.gpg] ${APT_URL} ${DIST} main' > /etc/apt/sources.list.d/dockershelf.list
         apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "nodejs-${NODE}"
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends "nodejs-${NODE}"
         node --version
         npm --version
         test -x /usr/bin/node
@@ -94,10 +94,17 @@ docker cp "$DIST_DIR/." "$CONTAINER:/debs/"
 
 docker exec "$CONTAINER" bash -euxc "
     apt-get update -qq
+    apt-get install -y -qq dpkg-dev
     shopt -s nullglob
     pkgs=(/debs/*.deb)
-    dpkg -i \"\${pkgs[@]}\" || true
-    DEBIAN_FRONTEND=noninteractive apt-get -f install -y -qq
+    if [[ ${#pkgs[@]} -eq 0 ]]; then
+        echo 'no .deb files in /debs' >&2
+        exit 1
+    fi
+    (cd /debs && dpkg-scanpackages . /dev/null | gzip -9c > Packages.gz)
+    echo 'deb [trusted=yes] file:/debs ./' > /etc/apt/sources.list.d/dockershelf-debs.list
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends "nodejs-${NODE}"
     node --version
     npm --version
     test -x /usr/bin/node

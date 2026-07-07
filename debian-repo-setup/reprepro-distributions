@@ -16,7 +16,7 @@ Suite: stable
 Codename: trixie
 Architectures: amd64 arm64 source
 Components: main
-Description: Dockershelf packages for Debian trixie (Python, Node.js, …)
+Description: Dockershelf packages for Debian trixie (Python, Node.js, Go, …)
 SignWith: SIGNWITH_KEY_ID
 
 Origin: Dockershelf
@@ -25,5 +25,5 @@ Suite: unstable
 Codename: unstable
 Architectures: amd64 arm64 source
 Components: main
-Description: Dockershelf packages for Debian unstable (Python, Node.js, …)
+Description: Dockershelf packages for Debian unstable (Python, Node.js, Go, …)
 SignWith: SIGNWITH_KEY_ID

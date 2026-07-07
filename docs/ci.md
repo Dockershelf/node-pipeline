@@ -16,7 +16,7 @@ re-enable by restoring `'["trixie", "unstable"]'` once trixie builder images and
 | [`update-meta-gbp.yml`](../.github/workflows/update-meta-gbp.yml) | `node-pipeline` | Reusable: update → build → smoke → publish |
 | [`pr.yml`](../.github/workflows/pr.yml) | `node-pipeline` | `pre-commit` on pull requests |
 | [`publish.yml`](../.github/workflows/publish.yml) | `node-pipeline` | Manual republish of local `dist/` to APT |
-| [`main.yml`](https://github.com/Dockershelf/node22/blob/main/.github/workflows/main.yml) | each `nodeXX` | Daily schedule + dispatch → calls reusable workflow |
+| [`main.yml`](https://github.com/Dockershelf/node22/blob/main/.github/workflows/main.yml) | each `nodeXX` | Weekly schedule + dispatch → calls reusable workflow |
 
 ## CI workspace layout
 
@@ -108,12 +108,6 @@ Scheduled runs publish when deploy variables and `DEPLOY_SSH_KEY` are configured
 **Full pipeline (node22):** Actions → packaging → Run workflow. Set `arches` to `["amd64","arm64"]` for multi-arch, or `["amd64"]` (default) for amd64 only.
 
 **Republish existing debs:** `node-pipeline` → Actions → publish → choose suite (expects `dist/*.deb` in the runner workspace).
-
-**Deploy connectivity only:** `node-pipeline` → Actions → Deploy connectivity.
-
-## `deploy-status` summary job
-
-The reusable workflow has a final `deploy-status` job that runs **only when** `smoke` succeeded but `publish` was skipped (because `DEPLOY_HOST` is empty). It writes a short summary to the run's job summary explaining that build and smoke passed but publish was not configured. It never runs when publish succeeds or when smoke fails.
 
 ## Failure modes
 

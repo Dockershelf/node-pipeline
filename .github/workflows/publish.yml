@@ -54,6 +54,7 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
             echo "run_id=${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
+            # workflow_run doesn't carry dist input; default to unstable
             echo "dist=unstable" >> "$GITHUB_OUTPUT"
           else
             echo "run_id=${{ inputs.run_id }}" >> "$GITHUB_OUTPUT"

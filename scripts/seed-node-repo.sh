@@ -32,13 +32,7 @@ done < <(find "${TARGET}" -type f -print0)
 
 cd "${TARGET}"
 git init -b main
-mkdir -p node
-cat > .gitmodules <<EOF
-[submodule "node"]
-	path = node
-	url = https://github.com/nodejs/node.git
-	branch = v${MAJOR}.x
-EOF
+chmod +x debiandirs/*/rules
 
 # Register node/ as a proper 160000 gitlink pointing to the v${MAJOR}.x
 # branch HEAD, matching the python-pipeline cpython/ submodule pattern.

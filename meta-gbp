@@ -33,6 +33,11 @@ def _node_major() -> int:
 VERSION_RE = re.compile(r'^v(\d+\.\d+\.\d+)((?:a|b|rc)\d+)?(.*)$')
 
 
+def _is_dev_snapshot(v_match: re.Match[str]) -> bool:
+    """True when describe is past a tag (e.g. v22.11.0-41-gabc123)."""
+    return bool(v_match[3])
+
+
 class Version(NamedTuple):
     version: str
     extra: str
@@ -65,8 +70,11 @@ class Version(NamedTuple):
     @classmethod
     def parse(cls, s: str) -> Version:
         match = VERSION_RE.fullmatch(s)
-        if not match:
-            raise ValueError(f'expected bare version, got {s}')
+        if not match or _is_dev_snapshot(match):
+            raise ValueError(
+                f'expected a release tag (e.g. v22.11.0), got {s}; '
+                'checkout node at an upstream release tag'
+            )
         return cls(match[1], match[2])
 
 
@@ -193,9 +201,6 @@ def _reference_args() -> tuple[str, ...]:
     if node_dir is not None:
         return ('--reference', node_dir, '--dissociate')
     return ()
-
-
-    return match
 
 
 def _current_tag() -> re.Match[str]:
@@ -379,7 +384,7 @@ def _update(*, rev: str | None, interactive: bool) -> int:
     _cmd_q('git', 'add', 'changelogs', 'node')
     if os.path.isdir('patches'):
         _cmd_q('git', 'add', 'patches')
-    _cmd_q('git', 'commit', '-m', f'update to {rev}')
+    _cmd_q('git', 'commit', '-m', f'update to {rev} (mainline)')
 
     return 0
 
