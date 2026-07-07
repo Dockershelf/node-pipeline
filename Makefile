@@ -30,11 +30,11 @@ export DEBEMAIL
 endif
 export DOCKERSHELF_SUITES ?= trixie unstable
 export DOCKERSHELF_REFERENCE_NODE ?= 22
-export DOCKERSHELF_DEPLOY_HOST ?= apt.dockershelf.example
+export DOCKERSHELF_DEPLOY_HOST ?= apt.dockershelf.com
 export DOCKERSHELF_DEPLOY_USER ?= deploy
 export DOCKERSHELF_DEPLOY_DIR ?= /var/www/debian
 export DOCKERSHELF_DEPLOY_INCOMING ?= /var/www/debian/incoming
-export DOCKERSHELF_APT_URL ?= https://apt.dockershelf.example/debian
+export DOCKERSHELF_APT_URL ?= https://apt.dockershelf.com/dockershelf
 export DOCKERSHELF_GITHUB_ORG ?= Dockershelf
 
 NODE_VERSIONS := 16 18 20 22 24

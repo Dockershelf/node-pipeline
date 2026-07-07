@@ -3,7 +3,7 @@
 Node packages publish to the **same** DigitalOcean APT droplet and repository tree as Python packages.
 Org-level `DEPLOY_*` variables and `DEPLOY_SSH_KEY` configured for [python-pipeline](../python-pipeline/docs/deploy-setup.md) apply here without duplication.
 
-Public repository URL: **`https://apt.luisalejandro.org/dockershelf/`**
+Public repository URL: **`https://apt.dockershelf.com/dockershelf/`**
 
 ## Architecture
 
@@ -20,7 +20,7 @@ nodeXX workflow  →  update-meta-gbp.yml  →  build  →  smoke  →  publish
 
 | Item | Notes |
 |------|-------|
-| Droplet host | `apt.luisalejandro.org` |
+| Droplet host | `apt.dockershelf.com` |
 | Repository root | `/var/www/debian` |
 | Incoming directory | `/var/www/debian/incoming` |
 | Nginx path | `/dockershelf/` → `/var/www/debian/` |
@@ -48,7 +48,7 @@ Run `./scripts/ci-check-config.sh --strict` from `node-pipeline/` to verify conf
 ## Client apt line (Dockershelf images)
 
 ```text
-deb [signed-by=/usr/share/keyrings/dockershelf.gpg] https://apt.luisalejandro.org/dockershelf trixie main
+deb [signed-by=/usr/share/keyrings/dockershelf.gpg] https://apt.dockershelf.com/dockershelf trixie main
 ```
 
 Use codename matching the image base (`trixie` or `unstable` for sid).
@@ -58,8 +58,8 @@ Fetch the signing public key from the droplet (see python deploy-setup) or set `
 ## Verify publish
 
 ```bash
-curl -I https://apt.luisalejandro.org/dockershelf/dists/trixie/Release
-curl -s https://apt.luisalejandro.org/dockershelf/dists/trixie/main/binary-amd64/Packages.gz | zcat | grep -i nodejs
+curl -I https://apt.dockershelf.com/dockershelf/dists/trixie/Release
+curl -s https://apt.dockershelf.com/dockershelf/dists/trixie/main/binary-amd64/Packages.gz | zcat | grep -i nodejs
 ```
 
 ## Further reading

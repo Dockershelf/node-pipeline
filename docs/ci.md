@@ -64,7 +64,7 @@ Full droplet + GitHub wiring: [`docs/deploy-setup.md`](deploy-setup.md).
 
 | Name | Example |
 |------|---------|
-| `DEPLOY_HOST` | `apt.luisalejandro.org` |
+| `DEPLOY_HOST` | `apt.dockershelf.com` |
 | `DEPLOY_USER` | `deploy` |
 | `DEPLOY_DIR` | `/var/www/debian` |
 | `DEPLOY_INCOMING` | `/var/www/debian/incoming` |
@@ -128,4 +128,4 @@ After pushing `node-pipeline` to GitHub:
 2. Run **Deploy connectivity** workflow
 3. Run **Builder images** workflow
 4. Push `main.yml` to `node22`, dispatch with `publish: false`, then `publish: true`
-5. Confirm `curl -I https://apt.luisalejandro.org/dockershelf/dists/trixie/Release` lists nodejs packages
+5. Confirm `curl -I https://apt.dockershelf.com/dockershelf/dists/trixie/Release` lists nodejs packages
