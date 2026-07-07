@@ -43,7 +43,6 @@ Do **not** run a second droplet bootstrap for Node. Follow the Python pipeline g
 
 | Secret / variable | Node-specific? |
 |-----------------|----------------|
-| `GH_PACKAGES_TOKEN` | Optional — for `dockershelf-node-builder` GHCR push on `node-pipeline` |
 | `DEPLOY_*` | No — reuse org-level from Python setup |
 
 Run `./scripts/ci-check-config.sh --strict` from `node-pipeline/` to verify configuration.
