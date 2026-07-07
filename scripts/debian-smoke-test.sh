@@ -97,7 +97,7 @@ docker exec "$CONTAINER" bash -euxc "
     apt-get install -y -qq dpkg-dev
     shopt -s nullglob
     pkgs=(/debs/*.deb)
-    if [[ ${#pkgs[@]} -eq 0 ]]; then
+    if [[ \${#pkgs[@]} -eq 0 ]]; then
         echo 'no .deb files in /debs' >&2
         exit 1
     fi
