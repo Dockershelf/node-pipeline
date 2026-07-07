@@ -239,6 +239,9 @@ jobs:
             --arch "${{ matrix.arch }}"
 
   publish:
+    concurrency:
+      group: dockershelf-apt-publish
+      cancel-in-progress: false
     needs: [smoke, update]
     if: inputs.publish && vars.DEPLOY_HOST != ''
     runs-on: ubuntu-latest
@@ -246,6 +249,7 @@ jobs:
       DOCKERSHELF_ARCH: ${{ matrix.arch }}
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         dist: ${{ fromJSON(inputs.dists-json) }}
         arch: ${{ fromJSON(inputs.arches-json) }}
