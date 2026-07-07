@@ -16,8 +16,6 @@ nodeXX workflow  →  update-meta-gbp.yml  →  build  →  smoke  →  publish
                                                                               nginx /dockershelf/
 ```
 
-Use [`deploy-connectivity.yml`](../.github/workflows/deploy-connectivity.yml) to verify SSH and paths without publishing packages.
-
 ## What is shared with Python
 
 | Item | Notes |

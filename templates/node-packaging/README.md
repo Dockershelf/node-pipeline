@@ -1,6 +1,6 @@
 # node__NODE_MAJOR__
 
-Debian packaging for Node.js __NODE_MAJOR__: monolithic `nodejs` replacement packages used by the [Dockershelf node-pipeline](../node-pipeline).
+Debian packaging for Node.js __NODE_MAJOR__: monolithic `nodejs__NODE_MAJOR__` packages used by the [Dockershelf node-pipeline](../node-pipeline).
 
 ## Supported Debian suites
 

@@ -71,7 +71,7 @@ if [[ "$FROM_APT" -eq 1 ]]; then
         curl -fsSL ${APT_URL}/dockershelf-apt-signing.pub | gpg --dearmor > /usr/share/keyrings/dockershelf.gpg
         echo 'deb [signed-by=/usr/share/keyrings/dockershelf.gpg] ${APT_URL} ${DIST} main' > /etc/apt/sources.list.d/dockershelf.list
         apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "nodejs${NODE}"
         node --version
         npm --version
         test -x /usr/bin/node

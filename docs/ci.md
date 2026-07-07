@@ -16,7 +16,6 @@ re-enable by restoring `'["trixie", "unstable"]'` once trixie builder images and
 | [`update-meta-gbp.yml`](../.github/workflows/update-meta-gbp.yml) | `node-pipeline` | Reusable: update → build → smoke → publish |
 | [`pr.yml`](../.github/workflows/pr.yml) | `node-pipeline` | `pre-commit` on pull requests |
 | [`publish.yml`](../.github/workflows/publish.yml) | `node-pipeline` | Manual republish of local `dist/` to APT |
-| [`deploy-connectivity.yml`](../.github/workflows/deploy-connectivity.yml) | `node-pipeline` | Manual SSH/incoming-dir check (no rsync) |
 | [`main.yml`](https://github.com/Dockershelf/node22/blob/main/.github/workflows/main.yml) | each `nodeXX` | Daily schedule + dispatch → calls reusable workflow |
 
 ## CI workspace layout
