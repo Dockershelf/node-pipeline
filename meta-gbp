@@ -39,7 +39,7 @@ class Version(NamedTuple):
 
     @property
     def pkg_name(self) -> str:
-        return f'nodejs{_node_major()}'
+        return f'nodejs-{_node_major()}'
 
     @property
     def debian_version(self) -> str:

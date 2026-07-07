@@ -1,4 +1,4 @@
-Source: nodejs__NODE_MAJOR__
+Source: nodejs-__NODE_MAJOR__
 Section: web
 Priority: optional
 Maintainer: Luis Alejandro Martínez Faneyth <luis@luisalejandro.org>
@@ -14,7 +14,7 @@ Homepage: https://nodejs.org
 Vcs-Browser: https://github.com/Dockershelf/node__NODE_MAJOR__
 Vcs-Git: https://github.com/Dockershelf/node__NODE_MAJOR__.git
 
-Package: nodejs__NODE_MAJOR__
+Package: nodejs-__NODE_MAJOR__
 Architecture: any
 Multi-Arch: allowed
 Depends: ${shlibs:Depends},

@@ -27,19 +27,19 @@ override_dh_dwz:
 	@echo "Skipping dwz; node binary exceeds dwz DIE limit."
 
 override_dh_auto_install:
-	$(MAKE) install DESTDIR=$(CURDIR)/debian/nodejs__NODE_MAJOR__
-	if [ -x debian/nodejs__NODE_MAJOR__/usr/bin/node ] && [ ! -e debian/nodejs__NODE_MAJOR__/usr/bin/nodejs ]; then \
-		ln -s node debian/nodejs__NODE_MAJOR__/usr/bin/nodejs; \
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/nodejs-__NODE_MAJOR__
+	if [ -x debian/nodejs-__NODE_MAJOR__/usr/bin/node ] && [ ! -e debian/nodejs-__NODE_MAJOR__/usr/bin/nodejs ]; then \
+		ln -s node debian/nodejs-__NODE_MAJOR__/usr/bin/nodejs; \
 	fi
 
 override_dh_fixperms:
 	dh_fixperms
 	for script in \
-		debian/nodejs__NODE_MAJOR__/usr/bin/npm \
-		debian/nodejs__NODE_MAJOR__/usr/bin/npx \
-		debian/nodejs__NODE_MAJOR__/usr/bin/corepack \
-		debian/nodejs__NODE_MAJOR__/usr/lib/node_modules/npm/bin/npm-cli.js \
-		debian/nodejs__NODE_MAJOR__/usr/lib/node_modules/npm/bin/npx-cli.js \
-		debian/nodejs__NODE_MAJOR__/usr/lib/node_modules/corepack/dist/corepack.js; do \
+		debian/nodejs-__NODE_MAJOR__/usr/bin/npm \
+		debian/nodejs-__NODE_MAJOR__/usr/bin/npx \
+		debian/nodejs-__NODE_MAJOR__/usr/bin/corepack \
+		debian/nodejs-__NODE_MAJOR__/usr/lib/node_modules/npm/bin/npm-cli.js \
+		debian/nodejs-__NODE_MAJOR__/usr/lib/node_modules/npm/bin/npx-cli.js \
+		debian/nodejs-__NODE_MAJOR__/usr/lib/node_modules/corepack/dist/corepack.js; do \
 		if [ -e "$$script" ]; then chmod 0755 "$$script"; fi; \
 	done

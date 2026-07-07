@@ -1,4 +1,4 @@
-nodejs__NODE_MAJOR__ (__NODE_MAJOR__.0.0-1+trixie1) trixie; urgency=medium
+nodejs-__NODE_MAJOR__ (__NODE_MAJOR__.0.0-1+trixie1) trixie; urgency=medium
 
   * Initial Dockershelf packaging for Node.js __NODE_MAJOR__.
 
