@@ -37,7 +37,7 @@ export DOCKERSHELF_DEPLOY_INCOMING ?= /var/www/debian/incoming
 export DOCKERSHELF_APT_URL ?= https://apt.dockershelf.com/dockershelf
 export DOCKERSHELF_GITHUB_ORG ?= Dockershelf
 
-NODE_VERSIONS := 18 20 22 24
+NODE_VERSIONS := 18 20 22 24 26
 
 .PHONY: all bootstrap clone-node-repos build-tools-image generate-dockerfiles build-builder-images \
 	materialize build publish list-dists help
