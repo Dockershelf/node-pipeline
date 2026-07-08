@@ -2,7 +2,7 @@ name: packaging
 
 on:
   schedule:
-    - cron: '0 0 * * 3'
+    - cron: '__PACKAGING_CRON__'
   workflow_dispatch:
     inputs:
       publish:
