@@ -16,12 +16,14 @@ TARGET="${2:?usage: seed-node-repo.sh <major> <target-dir>}"
 PIPELINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATE="${PIPELINE}/templates/node-packaging"
 PYTHON_MINOR="$((MAJOR / 2 + 1))"
-# Stagger Node.js builds: Thursdays, every 2 hours starting at 02:00
-# node18=02:00, node20=04:00, node22=06:00, node24=08:00, node26=10:00, etc.
-CRON_HOUR=$(( ((MAJOR - 18) / 2) * 2 + 2 ))
+
+# Stagger Node.js builds: Thursdays, every 2 hours with modulo 24 wrapping
+# Ensures no collisions with 5-version limit and auto-wraps past midnight
+CRON_HOUR=$(( (((MAJOR - 18) / 2) * 2 + 2) % 24 ))
 packaging_cron() {
     printf '0 %d * * 4' "$CRON_HOUR"
 }
+
 if [ -e "${TARGET}" ]; then
     echo "ERROR: ${TARGET} already exists"
     exit 1

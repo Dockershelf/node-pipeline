@@ -11,11 +11,11 @@ Clone this repo as a sibling of the `node*` packaging repos:
 ```text
 dockershelf-pipeline/
 ├── node-pipeline/     # this repo
-├── node16/
 ├── node18/
 ├── node20/
 ├── node22/
-└── node24/
+├── node24/
+└── node26/
 ```
 
 ## Quick start
@@ -67,7 +67,7 @@ See [docs/ci.md](docs/ci.md) and [docs/deploy-setup.md](docs/deploy-setup.md).
 
 | Local path (sibling) | Remote |
 |----------------------|--------|
-| `../node16/` … `../node24/` | `https://github.com/Dockershelf/nodeXX` |
+| `../node18/` … `../node26/` | `https://github.com/Dockershelf/nodeXX` |
 
 `make bootstrap` clones any missing `node*` repos from GitHub, or seeds them from `templates/node-packaging/` when remotes are unavailable.
 

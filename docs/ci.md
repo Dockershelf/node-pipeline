@@ -1,7 +1,7 @@
 # GitHub Actions CI
 
 Continuous integration for Dockershelf Node.js packaging: builder images on GHCR, scheduled
-`meta-gbp update` / build / smoke test / APT publish across `node16`–`node24`.
+`meta-gbp update` / build / smoke test / APT publish across `node18`–`node26`.
 
 Multi-arch (amd64 + arm64) is supported via the `arches` dispatch input and the
 `arches-json` reusable-workflow input. arm64 jobs run on `ubuntu-24.04-arm` runners.
@@ -85,7 +85,7 @@ Publish jobs run only when `publish` input is true **and** `DEPLOY_HOST` is set.
    - Same secrets/variables as above (or inherit org-level).
 
 3. **GHCR package visibility**
-   - Link each `dockershelf-node-builder/*` package to `node16` … `node24` under **Package settings → Manage Actions access**, or make packages **public**.
+   - Link each `dockershelf-node-builder/*` package to `node18` … `node26` under **Package settings → Manage Actions access**, or make packages **public**.
    - Caller workflows use `permissions: packages: read`.
    - If `docker pull` is denied, CI builds from committed `dockerfiles/Dockerfile.*`.
 
@@ -95,11 +95,11 @@ Packaging runs **weekly on Thursday** (2 days before Dockershelf consumer images
 
 | Repo | Cron | Notes |
 |------|------|-------|
-| node16 | `0 0 * * 4` | Thursday 00:00 |
 | node18 | `0 2 * * 4` | Thursday 02:00 |
 | node20 | `0 4 * * 4` | Thursday 04:00 |
 | node22 | `0 6 * * 4` | Thursday 06:00 |
 | node24 | `0 8 * * 4` | Thursday 08:00 |
+| node26 | `0 10 * * 4` | Thursday 10:00 |
 
 Scheduled runs publish when deploy variables and `DEPLOY_SSH_KEY` are configured. Use `workflow_dispatch` with `publish: false` to build and smoke-test only, and `arches` (JSON array, default `["amd64"]`) to select architectures.
 

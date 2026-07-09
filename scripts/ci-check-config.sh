@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-REPOS=(node-pipeline node16 node18 node20 node22 node24)
+REPOS=(node-pipeline node18 node20 node22 node24 node26)
 REQUIRED_SECRET=DEPLOY_SSH_KEY
 REQUIRED_VARS=(DEPLOY_HOST DEPLOY_USER DEPLOY_DIR DEPLOY_INCOMING)
 
