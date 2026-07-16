@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import importlib.machinery
@@ -6,6 +5,7 @@ import importlib.util
 import os
 import subprocess
 import tempfile
+import types
 import unittest
 from pathlib import Path
 
@@ -14,7 +14,7 @@ HERE = Path(__file__).resolve().parents[1]
 META_GBP = HERE / 'meta-gbp'
 
 
-def _load_meta_gbp():
+def _load_meta_gbp() -> types.ModuleType:
     loader = importlib.machinery.SourceFileLoader('meta_gbp', str(META_GBP))
     spec = importlib.util.spec_from_loader(loader.name, loader)
     assert spec is not None and spec.loader is not None
@@ -64,7 +64,6 @@ class PinAndUpdateTargetTests(unittest.TestCase):
         _git(str(self.node), 'commit', '-m', 'Working on v20.20.3')
         _git(str(self.node), 'branch', '-M', 'v20.x')
         _git(str(self.node), 'checkout', '-B', 'main', 'v20.x')
-        # Packaging repo with node as a local clone (simulates submodule checkout).
         _git(str(self.root), 'init')
         _git(str(self.root), 'config', 'user.email', 'test@example.com')
         _git(str(self.root), 'config', 'user.name', 'test')
@@ -78,8 +77,6 @@ class PinAndUpdateTargetTests(unittest.TestCase):
         (self.root / 'debiandirs' / 'trixie' / 'control').write_text(
             'Source: nodejs-20\nPackage: nodejs-20\n',
         )
-        # Treat node/ as a nested git repo tracked via gitlink-like content:
-        # for pin tests we only need cwd=node20 and node/.git present.
         _git(str(self.root), 'add', 'changelogs', 'debiandirs')
         _git(str(self.root), 'commit', '-m', 'init packaging')
         self._old_cwd = os.getcwd()
@@ -101,35 +98,24 @@ class PinAndUpdateTargetTests(unittest.TestCase):
         tag = _git(str(self.node), 'rev-parse', 'v20.20.2')
         self.assertEqual(head, tag)
 
-    def test_update_target_returns_current_when_already_on_branch_tip(self) -> None:
-        # HEAD is branch tip (dev). No release tags ahead -> return current.
-        current = _git(str(self.node), 'rev-parse', 'HEAD')
-        # Fake fetch target by creating node-upstream at HEAD.
-        _git(str(self.node), 'branch', 'node-upstream', 'HEAD')
-
-        # Patch _update_target's fetch path by stubbing _cmd_q/_cmd_o fetch.
-        # Call the selection loop indirectly: after pin, with upstream == HEAD.
-        # Instead exercise the no-op path: pin first, then update_target with
-        # empty ahead range.
+    def test_update_target_returns_current_on_branch_tip(self) -> None:
         self.mod._pin_node_to_release_tag()
-        # Move HEAD back to tip and point node-upstream at tip so range empty.
         _git(str(self.node), 'checkout', 'v20.x')
         tip = _git(str(self.node), 'rev-parse', 'HEAD')
         _git(str(self.node), 'branch', '-f', 'node-upstream', tip)
 
-        # Monkeypatch fetch to no-op so _update_target uses existing branches.
-        original_cmd_q = self.mod._cmd_q
+        original_cmd_q = getattr(self.mod, '_cmd_q')
 
         def _cmd_q_noop(*cmd: str, cwd: str | None = None) -> None:
             if cmd[:3] == ('git', '-C', 'node') and 'fetch' in cmd:
                 return None
             return original_cmd_q(*cmd, cwd=cwd)
 
-        self.mod._cmd_q = _cmd_q_noop  # type: ignore[method-assign]
+        setattr(self.mod, '_cmd_q', _cmd_q_noop)
         try:
             got = self.mod._update_target()
         finally:
-            self.mod._cmd_q = original_cmd_q  # type: ignore[method-assign]
+            setattr(self.mod, '_cmd_q', original_cmd_q)
         self.assertEqual(got, tip)
 
 

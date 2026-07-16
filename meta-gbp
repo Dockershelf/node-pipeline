@@ -84,7 +84,7 @@ class Version(NamedTuple):
         if not match or _is_dev_snapshot(match):
             raise ValueError(
                 f'expected a release tag (e.g. v22.11.0), got {s}; '
-                'checkout node at an upstream release tag'
+                'checkout node at an upstream release tag',
             )
         return cls(match[1], match[2])
 
@@ -186,8 +186,6 @@ def _validate_meta_gbp_dir() -> None:
             raise SystemExit(f'not a meta-gbp repo? missing ./{path}')
 
     assert _node_major()
-
-    mainline_dists = sorted(os.listdir('changelogs/mainline'))
 
 
 def _likely_node_clone(d: str) -> bool:

@@ -16,7 +16,7 @@ def main() -> NoReturn:
 
     deb_fullname = os.environ.get('DEBFULLNAME', name)
     deb_email = os.environ.get('DEBEMAIL', email)
-    forwarded_env = []
+    forwarded_env: list[str] = []
     for var in (
         'DEB_BUILD_OPTIONS',
         'DEB_CFLAGS_MAINT_APPEND',

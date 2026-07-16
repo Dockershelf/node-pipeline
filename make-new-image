@@ -83,7 +83,7 @@ def main() -> int:
             packages=' \\\n        '.join(sorted(deps)),
         )
         + '\n'
-        + DOCKERFILE_PYTHON_BUILDERS
+        + DOCKERFILE_PYTHON_BUILDERS,
     )
     return 0
 
