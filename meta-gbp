@@ -38,6 +38,17 @@ def _is_dev_snapshot(v_match: re.Match[str]) -> bool:
     return bool(v_match[3])
 
 
+def _describe_at(rev: str) -> re.Match[str]:
+    git = ('git', '-C', 'node')
+    tag = _cmd_o(
+        *git, 'describe', '--abbrev=10', '--tags', '--match', 'v*', rev,
+    ).rstrip()
+    match = VERSION_RE.fullmatch(tag)
+    if match is None:
+        raise SystemExit(f'Unexpected tag at {rev}: {tag}')
+    return match
+
+
 class Version(NamedTuple):
     version: str
     extra: str
@@ -73,7 +84,7 @@ class Version(NamedTuple):
         if not match or _is_dev_snapshot(match):
             raise ValueError(
                 f'expected a release tag (e.g. v22.11.0), got {s}; '
-                'checkout node at an upstream release tag'
+                'checkout node at an upstream release tag',
             )
         return cls(match[1], match[2])
 
@@ -175,8 +186,6 @@ def _validate_meta_gbp_dir() -> None:
             raise SystemExit(f'not a meta-gbp repo? missing ./{path}')
 
     assert _node_major()
-
-    mainline_dists = sorted(os.listdir('changelogs/mainline'))
 
 
 def _likely_node_clone(d: str) -> bool:
@@ -290,20 +299,33 @@ def _update_target() -> str:
 
     current = _cmd_o(*git, 'rev-parse', 'HEAD').strip()
 
-    log_output = _cmd_o(
+    for rev in _cmd_o(
         *git, 'log',
         '--reverse',
         '--decorate-refs=refs/tags/',
         '--format=%H',
         '--simplify-by-decoration',
         'HEAD..node-upstream',
-    )
-    for line in log_output.splitlines():
-        if line == current:
+    ).splitlines():
+        if rev == current:
             continue
-        return line
+        if not _is_dev_snapshot(_describe_at(rev)):
+            return rev
 
-    return _cmd_o(*git, 'rev-parse', 'node-upstream').strip()
+    return current
+
+
+def _pin_node_to_release_tag() -> str | None:
+    """If node HEAD is past a tag, check out that release tag. Returns tag name."""
+    git = ('git', '-C', 'node')
+    head = _cmd_o(*git, 'rev-parse', 'HEAD').strip()
+    if not _is_dev_snapshot(_describe_at(head)):
+        return None
+    tag = _cmd_o(*git, 'describe', '--abbrev=0', '--tags', '--match', 'v*').strip()
+    if _cmd_o(*git, 'rev-parse', tag).strip() == head:
+        return None
+    _cmd_q(*git, 'checkout', tag)
+    return tag
 
 
 def _update(*, rev: str | None, interactive: bool) -> int:
@@ -312,6 +334,10 @@ def _update(*, rev: str | None, interactive: bool) -> int:
 
     current_rev = _cmd_o('git', '-C', 'node', 'rev-parse', 'HEAD').strip()
     if current_rev == rev:
+        pinned = _pin_node_to_release_tag()
+        if pinned is not None:
+            _cmd_q('git', 'add', 'node')
+            _cmd_q('git', 'commit', '-m', f'node: pin to release {pinned}')
         print('already up to date!', file=sys.stderr)
         return 0
 
